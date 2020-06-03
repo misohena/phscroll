@@ -252,6 +252,12 @@
     (loop for area in (phscroll-enum-area)
           do (phscroll-update-area-display area t))))
 
+(defun phscroll-invalidate-all-area ()
+  (save-restriction
+    (widen)
+    (loop for area in (phscroll-enum-area)
+          do (phscroll-area-clear-updated-ranges area))))
+
 (defun phscroll-areas-in-window (&optional window)
   (phscroll-enum-area
    (min (phscroll-window-start window))
@@ -435,8 +441,11 @@
 ;;
 
 (defun phscroll-on-window-size-changed (&optional frame)
-  ;;(message "window-size-changed width=%s" (window-width))
-  (phscroll-update-all-area))
+  ;;(message "window-size-changed width beg=%s end=%s width=%s" (window-start) (window-end) (window-width))
+  ;;(phscroll-update-all-area)
+  (phscroll-invalidate-all-area)
+  ;;(phscroll-update-areas-in-window) Do not use. window-start and window-end are not updated
+  )
 
 (defun phscroll-on-post-command ()
   ;(message "on post command window-end=%s" (window-end))
