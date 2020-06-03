@@ -120,7 +120,7 @@
                 'phscroll ;;0
                 0  ;; 1:scroll-column
                 ov ;; 2:overlay
-                '((-1 . -1)) ;; 3:updated-ranges
+                (list (cons -1 -1)) ;; 3:updated-ranges
                 )))
     (overlay-put ov 'phscroll t)
     (overlay-put ov 'phscroll-area area)
