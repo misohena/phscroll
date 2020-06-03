@@ -629,11 +629,14 @@
 (defun phscroll-char-width-next (pos)
   (let* (display
          invisible
-         (overlays (overlays-at pos t))
-         (display-ov (find-if (lambda (ov) (and (overlay-get ov 'display) (null (overlay-get ov 'phscroll)))) overlays))) ;;exclude 'phscroll overlays
+         display-ov
+         invisible-ov
+         (overlays (seq-filter (lambda (ov) (and (null (overlay-get ov 'phscroll)) ;;exclude 'phscroll overlays
+                                                 (not (eq (overlay-get ov 'invisible) 'outline)))) ;;exclude 'invisible outline
+                               (overlays-at pos t))))
     (cond
      ;; display (overlay or text property)
-     ((setq display (or (if display-ov (overlay-get display-ov 'display))
+     ((setq display (or (if (setq display-ov (find-if (lambda (ov) (overlay-get ov 'display)) overlays)) (overlay-get display-ov 'display))
                         (get-text-property pos 'display)))
       (cons
        ;; width
@@ -659,12 +662,11 @@
        (if display-ov (overlay-end display-ov) (1+ pos))))
 
      ;; invisible
-     ((progn (setq invisible (get-char-property-and-overlay pos 'invisible))
-             (car invisible))
-      (let ((ov (cdr invisible)))
-        (cons
-         0
-         (if ov (overlay-end ov) (1+ pos)))))
+     ((setq invisible (or (setq invisible-ov (find-if (lambda (ov) (overlay-get ov 'invisible)) overlays))
+                          (get-text-property pos 'invisible)))
+      (cons
+       0
+       (if invisible-ov (overlay-end invisible-ov) (1+ pos))))
      ;; normal character
      (t
       (cons
