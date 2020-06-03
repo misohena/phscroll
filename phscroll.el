@@ -170,13 +170,13 @@
 (defun phscroll-scroll-left (&optional arg area)
   (interactive "P")
   (phscroll-add-scroll-column
-   (if arg (prefix-numeric-value arg) (- (window-width) 2))
+   (if arg (prefix-numeric-value arg) (- (window-width) 2 phscroll-margin-right 4))
    area))
 
 (defun phscroll-scroll-right (&optional arg area)
   (interactive "P")
   (phscroll-add-scroll-column
-   (- (if arg (prefix-numeric-value arg) (- (window-width) 2)))
+   (- (if arg (prefix-numeric-value arg) (- (window-width) 2 phscroll-margin-right 4)))
    area))
 
 
