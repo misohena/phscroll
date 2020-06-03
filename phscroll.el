@@ -33,7 +33,7 @@
 ;; - [X] truncate-lines によって動作を変える。truncate-linesのときは何もしない。切り替えを検出できるか
 ;; - [X] remove-overlaysのところ
 ;; - phscroll-update-area-displayが遅い
-;; - 既存の水平スクロール操作に対応?(scroll-left, scroll-right)
+;; - [X] 既存の水平スクロール操作に対応?(scroll-left, scroll-right)
 ;; - 複数ウィンドウの挙動、特に左右に分割した場合で左右のサイズが異なる場合はどうしようもない。最小幅を使うしか？　何もしない方が良い？
 
 (define-minor-mode phscroll-mode
@@ -125,6 +125,7 @@
     (overlay-put ov 'phscroll t)
     (overlay-put ov 'phscroll-area area)
     (overlay-put ov 'modification-hooks (list #'phscroll-on-modified))
+    (phscroll-area-set-keymap area)
     area))
 
 (defun phscroll-area-destroy (area)
@@ -138,15 +139,76 @@
 
 ;; Area Scroll Position
 
+(setq phscroll-interactive-scroll-commands
+      '(phscroll-set-scroll-column
+        phscroll-scroll-left
+        phscroll-scroll-right))
+
 (defun phscroll-get-scroll-column (&optional area)
   (nth 1 (or area (phscroll-get-current-area))))
 
 (defun phscroll-set-scroll-column (pos &optional area)
+  (interactive "nColumn: ")
   (if (null area)
       (setq area (phscroll-get-current-area)))
+  (if (< pos 0)
+      (setq pos 0))
   (when (and area (not (= (phscroll-get-scroll-column area) pos)))
     (setcar (nthcdr 1 area) pos)
     (phscroll-update-area-display area t)))
+
+(defun phscroll-add-scroll-column (delta &optional area)
+  (if (null area)
+      (setq area (phscroll-get-current-area)))
+  (when area
+    (phscroll-set-scroll-column
+     (+ (phscroll-get-scroll-column area) delta)
+     area)))
+
+(defun phscroll-scroll-left (&optional arg area)
+  (interactive "P")
+  (phscroll-add-scroll-column
+   (if arg (prefix-numeric-value arg) (- (window-width) 2))
+   area))
+
+(defun phscroll-scroll-right (&optional arg area)
+  (interactive "P")
+  (phscroll-add-scroll-column
+   (- (if arg (prefix-numeric-value arg) (- (window-width) 2)))
+   area))
+
+
+(defun phscroll-show-point (pos)
+  (let ((area (phscroll-get-area-at pos)))
+    (if area
+        (let ((scroll-column (phscroll-get-scroll-column area))
+              (pos-column (phscroll-string-width
+                           (phscroll-buffer-substring
+                            (phscroll-line-begin pos) pos)))
+              (window-width (phscroll-window-width pos)))
+          (cond
+           ((< pos-column scroll-column)
+            (phscroll-set-scroll-column pos-column area))
+           ((> pos-column (+ scroll-column window-width))
+            (phscroll-set-scroll-column (- pos-column window-width) area)))))))
+
+(defun phscroll-scroll-point (pos)
+  (let ((area (phscroll-get-area-at pos)))
+    (if area
+        (let ((scroll-column (phscroll-get-scroll-column area))
+              (pos-column (phscroll-string-width
+                           (phscroll-buffer-substring
+                            (phscroll-line-begin pos) pos)))
+              (window-width (phscroll-window-width pos))
+              (step (if (= hscroll-step 0)
+                        (/ (1+ (phscroll-window-width pos)) 2)
+                      hscroll-step)))
+          (cond
+           ((< pos-column (+ scroll-column hscroll-margin))
+            (phscroll-set-scroll-column (max 0 (- pos-column hscroll-margin step)) area))
+           ((> pos-column (+ scroll-column (- window-width hscroll-margin)))
+            (phscroll-set-scroll-column (+ (- pos-column window-width) hscroll-margin step) area)))))))
+
 
 ;; Area Overlay
 
@@ -364,36 +426,6 @@
 ;; Scroll
 ;;
 
-(defun phscroll-show-point (pos)
-  (let ((area (phscroll-get-area-at pos)))
-    (if area
-        (let ((scroll-column (phscroll-get-scroll-column area))
-              (pos-column (phscroll-string-width
-                           (phscroll-buffer-substring
-                            (phscroll-line-begin pos) pos)))
-              (window-width (phscroll-window-width pos)))
-          (cond
-           ((< pos-column scroll-column)
-            (phscroll-set-scroll-column pos-column area))
-           ((> pos-column (+ scroll-column window-width))
-            (phscroll-set-scroll-column (- pos-column window-width) area)))))))
-
-(defun phscroll-scroll-point (pos)
-  (let ((area (phscroll-get-area-at pos)))
-    (if area
-        (let ((scroll-column (phscroll-get-scroll-column area))
-              (pos-column (phscroll-string-width
-                           (phscroll-buffer-substring
-                            (phscroll-line-begin pos) pos)))
-              (window-width (phscroll-window-width pos))
-              (step (if (= hscroll-step 0)
-                        (/ (1+ (phscroll-window-width pos)) 2)
-                      hscroll-step)))
-          (cond
-           ((< pos-column (+ scroll-column hscroll-margin))
-            (phscroll-set-scroll-column (max 0 (- pos-column hscroll-margin step)) area))
-           ((> pos-column (+ scroll-column (- window-width hscroll-margin)))
-            (phscroll-set-scroll-column (+ (- pos-column window-width) hscroll-margin step) area)))))))
 
 
 ;;
@@ -407,8 +439,9 @@
 (defun phscroll-on-post-command ()
   ;(message "on post command window-end=%s" (window-end))
   ;;(phscroll-show-point (point))
-  (phscroll-scroll-point (point))
 
+  (unless (find this-command phscroll-interactive-scroll-commands)
+    (phscroll-scroll-point (point)))
   ;;(phscroll-update-area-display (phscroll-get-area-at (point)))
   (phscroll-update-areas-in-window nil nil)
   )
@@ -457,15 +490,15 @@
     (phscroll-update-all-area)))
 
 
-;; (setq phscroll-keymap
-;;      (let ((map (make-sparse-keymap)))
-;;        (define-key map "\C-f" 'phscroll-forward-char)
-;;        map))
-;; (defun phscroll-area-set-keymap (area)
-;;   (overlay-put (phscroll-area-overlay area) 'keymap phscroll-keymap))
-;; (defun phscroll-forward-char (&optional n)
-;;   (interactive "P")
-;;   (call-interactively #'forward-char))
+(setq phscroll-keymap
+      (let ((map (make-sparse-keymap)))
+        (define-key map "\C-x<" 'phscroll-scroll-left)
+        (define-key map "\C-x>" 'phscroll-scroll-right)
+        map))
+(defun phscroll-area-set-keymap (area)
+  (if area
+      (overlay-put (phscroll-area-overlay area) 'keymap phscroll-keymap)))
+
 
 
 
@@ -683,7 +716,7 @@
 ;; Example:
 ;;asjflasjfl;asjfl;asjfl;asjflasjlf;kajsl;fkjasl;fjasl;fjaslkfjals;fjasklfjasldf
 ;;1ちまはりちまとりれはちてりはくちれくはれちとくはちくとれはくちとれはちはちとまはりちとまはりとちれは
-;;ちまはりちまafasfsdfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+;;ちまはりちまafasfsdfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff$
 ;; とりれはちてりはくちれくはれちとくはちくとれはくちとれはちはちとまはりちとまはりとちれは
 ;;ちまはりちまとりれはちてりはくちれくはれちとくはちくとれはくちとれはちはちとまはりちとまはりとちれは
 
