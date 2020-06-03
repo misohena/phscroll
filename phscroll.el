@@ -188,6 +188,15 @@
     (loop for area in (phscroll-enum-area)
           do (phscroll-update-area-display area t))))
 
+(defun phscroll-areas-in-window (&optional window)
+  (phscroll-enum-area
+   (min (window-start window) (point))
+   (max (window-end window) (point))))
+
+(defun phscroll-update-areas-in-window (&optional redraw window)
+  (loop for area in (phscroll-areas-in-window window)
+        do (phscroll-update-area-display area redraw window)))
+
 ;;
 ;; Updated Range Management
 ;;
@@ -399,13 +408,15 @@
   ;(message "on post command window-end=%s" (window-end))
   ;;(phscroll-show-point (point))
   (phscroll-scroll-point (point))
-  (phscroll-update-area-display (phscroll-get-area-at (point)))
+
+  ;;(phscroll-update-area-display (phscroll-get-area-at (point)))
+  (phscroll-update-areas-in-window nil nil)
   )
 
 (defun phscroll-on-pre-redisplay (&optional window)
   ;;(message "redisplay window=%s width=%s window-end=%s %s" window (window-width) (window-end) (window-end window))
   (phscroll-check-truncate-lines)
-  (phscroll-update-area-display (phscroll-get-area-at (point)) nil window))
+  (phscroll-update-areas-in-window nil window))
 
 (defun phscroll-on-modified (ov after beg end &optional before-length)
   ;;(message "modified %s %s %s %s" after beg end before-length)
