@@ -430,11 +430,6 @@
 ;;(phscroll-area-shift-updated-ranges-after 51 10 test-area)
 
 
-;;
-;; Scroll
-;;
-
-
 
 ;;
 ;; Event Handlers
@@ -517,13 +512,33 @@
 
 
 ;;
+;; Window Utilities
+;;
+
+(defun phscroll-window-start (window)
+  ;;@todo pre-redisplay-functions 内では正しい値を返さない？
+  (window-start window))
+
+(defun phscroll-window-end (window)
+  ;;@todo pre-redisplay-functions 内では正しい値を返さない。徐々に増えていく場合がある。
+  (max
+   (window-end window t)
+   ;; window-startからwindow行数だけ進んだ場所。
+   ;; 不可視の行がある場合は正しくないが、再描画が終わるまで待つよりは良い場合がある。不可視の行を判定すればたどり着けるかもしれないが、テキストプロパティやオーバーレイを取得しながらだとおそらくかなり遅い。
+   (save-excursion
+     (goto-char (window-start window))
+     (forward-line (window-body-height window))
+     (point))))
+
+(defun phscroll-window-width (pos)
+  (- (window-width) phscroll-margin-right (length (get-text-property pos 'wrap-prefix))))
+
+
+;;
 ;; Area Display
 ;;
 
 (defvar phscroll-margin-right 4)
-
-(defun phscroll-window-width (pos)
-  (- (window-width) phscroll-margin-right (length (get-text-property pos 'wrap-prefix))))
 
 (defun phscroll-update-area-display (area &optional redraw window)
   (when (and area (not phscroll-truncate-lines))
@@ -600,21 +615,6 @@
 ;;
 ;; Text Width Utilities
 ;;
-
-(defun phscroll-window-start (window)
-  ;;@todo pre-redisplay-functions 内では正しい値を返さない？
-  (window-start window))
-
-(defun phscroll-window-end (window)
-  ;;@todo pre-redisplay-functions 内では正しい値を返さない。徐々に増えていく場合がある。
-  (max
-   (window-end window t)
-   ;; window-startからwindow行数だけ進んだ場所。
-   ;; 不可視の行がある場合は正しくないが、再描画が終わるまで待つよりは良い場合がある。不可視の行を判定すればたどり着けるかもしれないが、テキストプロパティやオーバーレイを取得しながらだとおそらくかなり遅い。
-   (save-excursion
-     (goto-char (window-start window))
-     (forward-line (window-body-height window))
-     (point))))
 
 (defun phscroll-line-begin (&optional pos)
   (if pos
