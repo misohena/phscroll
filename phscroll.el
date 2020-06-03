@@ -59,23 +59,44 @@
   (setq beg (phscroll-line-begin beg))
   (setq end (phscroll-line-end end))
 
-  ;; Turn on phscroll-mode
-  (if (not phscroll-mode)
-      (phscroll-mode))
+  (when (< beg end)
+    ;; turn on phscroll-mode
+    (if (not phscroll-mode)
+        (phscroll-mode))
 
-  ;; Create overlay and area object
-  (let ((area (car (phscroll-enum-area beg end))))
-    (if area
-        ;; reuse area
-        (let ((ov (phscroll-area-overlay area)))
-          ;; if changed
-          (when (or (not (= (overlay-start ov) beg))
-                    (not (= (overlay-end ov) end)))
-            (move-overlay (phscroll-area-overlay area) beg end)
-            (phscroll-update-area-display area t)))
-      ;; create new area
-      (setq area (phscroll-area-create beg end))
-      (phscroll-update-area-display area t))))
+    ;; create overlay and area object
+    (let* ((overlap-areas (phscroll-enum-area beg end))
+           (area (car overlap-areas)))
+      (if area
+          ;; reuse area
+          (let* ((ov (phscroll-area-overlay area))
+                 (area-beg (overlay-start ov))
+                 (area-end (overlay-end ov)))
+            ;; if area range changed
+            (when (or (not (= area-beg beg))
+                      (not (= area-end end)))
+              ;; maintain updated-ranges
+              ;; (adjust related position & remove ranges out of area)
+              (cond
+               ((< beg area-beg)
+                (phscroll-area-shift-updated-ranges-after area-beg (- area-beg beg) area))
+               ((> beg area-beg)
+                (phscroll-area-remove-updated-range area-beg beg area)
+                (phscroll-area-shift-updated-ranges-after area-beg (- area-beg beg) area))
+               ((< end area-end)
+                (phscroll-area-remove-updated-range end area-end area)))
+
+              ;; move overlay
+              (move-overlay ov beg end)
+              ;; update new area range
+              (phscroll-update-area-display area))
+            ;; destroy other overlap areas
+            (loop for ooa in (cdr overlap-areas)
+                  do (phscroll-area-destroy ooa)))
+        ;; create new area
+        (setq area (phscroll-area-create beg end))
+        (phscroll-update-area-display area t))
+      area)))
 
 (defun phscroll-delete-at (&optional pos)
   "Delete area."
