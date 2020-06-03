@@ -44,11 +44,13 @@
    (phscroll-mode
     (setq phscroll-truncate-lines truncate-lines)
     (add-hook 'post-command-hook #'phscroll-on-post-command nil t)
+    (add-hook 'window-scroll-functions #'phscroll-on-window-scroll nil t)
     (add-hook 'window-size-change-functions #'phscroll-on-window-size-changed nil t)
     (add-hook 'pre-redisplay-functions #'phscroll-on-pre-redisplay nil t)
     )
    (t
     (remove-hook 'post-command-hook #'phscroll-on-post-command t)
+    (remove-hook 'window-scroll-functions #'phscroll-on-window-scroll t)
     (remove-hook 'window-size-change-functions #'phscroll-on-window-size-changed t)
     (remove-hook 'pre-redisplay-functions #'phscroll-on-pre-redisplay t)
     )))
@@ -252,8 +254,8 @@
 
 (defun phscroll-areas-in-window (&optional window)
   (phscroll-enum-area
-   (min (window-start window) (point))
-   (max (window-end window) (point))))
+   (min (phscroll-window-start window))
+   (max (phscroll-window-end window))))
 
 (defun phscroll-update-areas-in-window (&optional redraw window)
   (loop for area in (phscroll-areas-in-window window)
@@ -446,8 +448,11 @@
   (phscroll-update-areas-in-window nil nil)
   )
 
+(defun phscroll-on-window-scroll (window new-display-start-pos)
+  (phscroll-update-areas-in-window nil window))
+
 (defun phscroll-on-pre-redisplay (&optional window)
-  ;;(message "redisplay window=%s width=%s window-end=%s %s" window (window-width) (window-end) (window-end window))
+  ;;(message "redisplay window=%s start=%s end=%s width=%s" window (window-start window) (window-end window) (window-width window))
   (phscroll-check-truncate-lines)
   (phscroll-update-areas-in-window nil window))
 
@@ -518,8 +523,8 @@
     (let* ((scroll-column (phscroll-get-scroll-column area))
            (area-begin (phscroll-area-begin area))
            (area-end (phscroll-area-end area))
-           (update-begin (max area-begin (phscroll-line-begin (min (window-start window) (point)))))
-           (update-end (min area-end (max (window-end window) (point)))))
+           (update-begin (max area-begin (phscroll-line-begin (phscroll-window-start window))))
+           (update-end (min area-end (phscroll-window-end window))))
 
       (when (and (< update-begin update-end)
                  (phscroll-area-needs-update-range update-begin update-end area))
@@ -586,6 +591,21 @@
 ;;
 ;; Text Width Utilities
 ;;
+
+(defun phscroll-window-start (window)
+  ;;@todo pre-redisplay-functions 内では正しい値を返さない？
+  (window-start window))
+
+(defun phscroll-window-end (window)
+  ;;@todo pre-redisplay-functions 内では正しい値を返さない。徐々に増えていく場合がある。
+  (max
+   (window-end window t)
+   ;; window-startからwindow行数だけ進んだ場所。
+   ;; 不可視の行がある場合は正しくないが、再描画が終わるまで待つよりは良い場合がある。不可視の行を判定すればたどり着けるかもしれないが、テキストプロパティやオーバーレイを取得しながらだとおそらくかなり遅い。
+   (save-excursion
+     (goto-char (window-start window))
+     (forward-line (window-body-height window))
+     (point))))
 
 (defun phscroll-line-begin (&optional pos)
   (if pos
