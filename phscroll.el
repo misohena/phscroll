@@ -36,6 +36,8 @@
 ;; - [X] 既存の水平スクロール操作に対応?(scroll-left, scroll-right)
 ;; - 複数ウィンドウの挙動、特に左右に分割した場合で左右のサイズが異なる場合はどうしようもない。最小幅を使うしか？　何もしない方が良い？
 
+(require 'cl)
+
 (define-minor-mode phscroll-mode
 
   "Partial horizontal scroll mode"
@@ -441,7 +443,7 @@
 ;; Event Handlers
 ;;
 
-(defun phscroll-on-window-size-changed (&optional frame)
+(defun phscroll-on-window-size-changed (&optional _frame)
   ;;(message "window-size-changed width beg=%s end=%s width=%s" (window-start) (window-end) (window-width))
   ;;(phscroll-update-all-area)
   (phscroll-invalidate-all-area)
@@ -458,7 +460,7 @@
   (phscroll-update-areas-in-window nil nil)
   )
 
-(defun phscroll-on-window-scroll (window new-display-start-pos)
+(defun phscroll-on-window-scroll (window _new-display-start-pos)
   (phscroll-update-areas-in-window nil window))
 
 (defun phscroll-on-pre-redisplay (&optional window)
@@ -584,7 +586,6 @@
   (let* ((window-width (phscroll-window-width (point)))
          ;; current line
          (line-str (phscroll-current-line-string))
-         (line-len (phscroll-string-length line-str))
          (line-begin (line-beginning-position))
          (line-end (line-end-position))
          (line-overlays (phscroll-get-overlay-cache line-begin line-end))
@@ -768,7 +769,7 @@
    ;; unknown
    (t 0)))
 
-(defun phscroll-invisible-property-width (invisible)
+(defun phscroll-invisible-property-width (_invisible)
   ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Invisible-Text.html
   ;;@todo support buffer-invisibility-spec ?
   0)
