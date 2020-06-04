@@ -110,6 +110,9 @@
   (loop for area in (phscroll-enum-area)
         do (phscroll-area-destroy area)))
 
+(defun phscroll-update-area-at (&optional pos)
+  (interactive "d")
+  (phscroll-update-area-display (phscroll-get-area-at pos) t))
 
 
 ;;
