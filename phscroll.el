@@ -581,16 +581,19 @@
          (line-len (phscroll-string-length line-str))
          (line-begin (line-beginning-position))
          (line-end (line-end-position))
+         (line-overlays (phscroll-get-overlay-cache line-begin line-end))
          ;; left invisible
          (left-limit-width scroll-column)
-         (left-str (phscroll-substring-over-width line-str left-limit-width))
-         (left-width (phscroll-string-width left-str)) ;; 0 ~ left-limit-width + overflow
+         (left-str-width (phscroll-substring-over-width line-str left-limit-width line-overlays))
+         (left-str (car left-str-width))
+         (left-width (cdr left-str-width)) ;; 0 ~ left-limit-width + overflow
          (left-overflow (max 0 (- left-width scroll-column))) ;; 0 ~ overflow
          (left-len (phscroll-string-length left-str))
          ;; middle visible
          (middle-limit-width (- window-width left-overflow))
-         (middle-str (phscroll-truncate-string-to-width (phscroll-substring line-str left-len) middle-limit-width))
-         (middle-width (phscroll-string-width middle-str))
+         (middle-str-width (phscroll-truncate-string-to-width (phscroll-substring line-str left-len) middle-limit-width line-overlays))
+         (middle-str (car middle-str-width))
+         (middle-width (cdr middle-str-width))
          (middle-shortage (- middle-limit-width middle-width))
          (middle-len (phscroll-string-length middle-str)))
 
@@ -613,7 +616,7 @@
 
 
 ;;
-;; Text Width Utilities
+;; Text Utilities
 ;;
 
 (defun phscroll-line-begin (&optional pos)
@@ -626,61 +629,7 @@
       (save-excursion (goto-char pos) (line-end-position))
     (line-end-position)))
 
-(defun phscroll-char-width-next (pos)
-  (let* (display
-         invisible
-         display-ov
-         invisible-ov
-         (overlays (seq-filter (lambda (ov) (and (null (overlay-get ov 'phscroll)) ;;exclude 'phscroll overlays
-                                                 (not (eq (overlay-get ov 'invisible) 'outline)))) ;;exclude 'invisible outline
-                               (overlays-at pos t))))
-    (cond
-     ;; display (overlay or text property)
-     ((setq display (or (if (setq display-ov (find-if (lambda (ov) (overlay-get ov 'display)) overlays)) (overlay-get display-ov 'display))
-                        (get-text-property pos 'display)))
-      (cons
-       ;; width
-       (cond
-        ;;;@todo support more formats
-        ;; string
-        ((stringp display)
-         (string-width display))
-        ;; list
-        ((listp display)
-         (cond
-          ((eq (car display) 'space)
-           (let* ((props (cdr display))
-                  (width (plist-get props :width))
-                  (relative-width (plist-get props :relative-width)))
-             (+
-              (if (integerp width) width 0)
-              (if (integerp relative-width) relative-width 0))))
-          (t 0)))
-        ;; unknown
-        (t 0))
-       ;; next pos
-       (if display-ov (overlay-end display-ov) (1+ pos))))
-
-     ;; invisible
-     ((setq invisible (or (setq invisible-ov (find-if (lambda (ov) (overlay-get ov 'invisible)) overlays))
-                          (get-text-property pos 'invisible)))
-      (cons
-       0
-       (if invisible-ov (overlay-end invisible-ov) (1+ pos))))
-     ;; normal character
-     (t
-      (cons
-       (char-width (char-after pos))
-       (1+ pos))))))
-
-(defun phscroll-text-width (beg end)
-  (let ((width 0)
-        (pos beg))
-    (while (< pos end)
-      (let ((width-next (phscroll-char-width-next pos)))
-        (setq width (+ width (car width-next)))
-        (setq pos (cdr width-next))))
-    width))
+;; Text Operation Like a String
 
 (defun phscroll-buffer-substring (beg end)
   ;;ignore-overlay: (buffer-substring-no-properties beg end)
@@ -702,44 +651,175 @@
    (if (null to) (cdr str) (+ (car str) to)))
   )
 
-(defun phscroll-string-width (str)
+
+;; Overlay Cache for Text Width Calculation
+
+(defun phscroll-ovc-create (type pvalue ov)
+  (list type
+        pvalue
+        ov
+        (overlay-start ov)
+        (overlay-end ov)
+        (overlay-get ov 'priority)))
+(defun phscroll-ovc-type (ovc) (car ovc))
+(defun phscroll-ovc-pvalue (ovc) (nth 1 ovc))
+(defun phscroll-ovc-ov (ovc) (nth 2 ovc))
+(defun phscroll-ovc-beg (ovc) (nth 3 ovc))
+(defun phscroll-ovc-end (ovc) (nth 4 ovc))
+(defun phscroll-ovc-priority (ovc) (nth 5 ovc))
+(defun phscroll-ovc-less (ovc1 ovc2)
+  (let ((dstart (- (phscroll-ovc-beg ovc1) (phscroll-ovc-beg ovc2))))
+    (or (< dstart 0)
+        (and (= dstart 0) (> (phscroll-ovc-priority ovc1) (phscroll-ovc-priority ovc2))))))
+
+(defun phscroll-get-overlay-cache (beg end)
+  (let* ((overlays (overlays-in beg end))
+         (iter overlays))
+    ;; filter overlays
+    (while iter
+      (let* ((ov (car iter))
+             pvalue)
+        (cond
+         ;; ignore phscroll's overlay
+         ((overlay-get ov 'phscroll)
+          (setcar iter nil))
+         ;; 'display
+         ((setq pvalue (overlay-get ov 'display))
+          (setcar iter (phscroll-ovc-create 'display pvalue ov))) ;;reuse a cons cell of overlays list
+         ;; 'invisible
+         ((and (setq pvalue (overlay-get ov 'invisible))
+               (not (eq pvalue 'outline))) ;;ignore outline invisible overlay
+          (setcar iter (phscroll-ovc-create 'invisible pvalue ov))) ;;reuse a cons cell of overlays list
+         ;; not supported type
+         (t
+          (setcar iter nil))))
+      (setq iter (cdr iter)))
+
+    ;; delete nil
+    (setq overlays (delq nil overlays))
+    ;; sort by overlay-start and priority
+    (sort overlays #'phscroll-ovc-less)))
+
+(defun phscroll-get-overlay-at (pos cache)
+  ;;discard ovc.end <= pos
+  (while (and cache (<= (phscroll-ovc-end (car cache)) pos))
+    (setq cache (cdr cache)))
+
+  (if (and cache
+           (<= (phscroll-ovc-beg (car cache)) pos)) ;; ovc.beg <= pos
+      (car cache)))
+
+;; Character Width Calculation
+
+(defun phscroll-char-width-next (pos cache)
+  (let (ovc display invisible)
+    (cond
+     ;; overlays
+     ((setq ovc (phscroll-get-overlay-at pos cache))
+      (case (phscroll-ovc-type ovc)
+        ('display (cons
+                   (phscroll-display-property-width (phscroll-ovc-pvalue ovc))
+                   (phscroll-ovc-end ovc)))
+        ('invisible (cons
+                     (phscroll-invisible-property-width (phscroll-ovc-pvalue ovc))
+                     (phscroll-ovc-end ovc)))
+        (t (cons 1 (1+ pos)))))
+
+     ;; display text property
+     ((setq display (get-text-property pos 'display))
+      (cons
+       (phscroll-display-property-width display)
+       (1+ pos)))
+     ;; invisible text property
+     ((setq invisible (get-text-property pos 'invisible))
+      (cons
+       (phscroll-invisible-property-width invisible)
+       (1+ pos)))
+     ;; normal character
+     (t
+      (cons
+       (char-width (char-after pos))
+       (1+ pos))))))
+
+(defun phscroll-display-property-width (display)
+  ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Display-Property.html#Display-Property
+  ;;@todo support more formats
+  (cond
+   ;; string
+   ((stringp display)
+    (string-width display))
+   ;; list
+   ((listp display)
+    (cond
+     ((eq (car display) 'space)
+      (let* ((props (cdr display))
+             (width (plist-get props :width))
+             (relative-width (plist-get props :relative-width)))
+        (+
+         (if (integerp width) width 0)
+         (if (integerp relative-width) relative-width 0))))
+     (t 0)))
+   ;; unknown
+   (t 0)))
+
+(defun phscroll-invisible-property-width (invisible)
+  ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Invisible-Text.html
+  ;;@todo support buffer-invisibility-spec ?
+  0)
+
+;; Text Width Calculation
+
+(defun phscroll-text-width (beg end &optional cache-arg)
+  (let ((width 0)
+        (pos beg)
+        (cache (or cache-arg (phscroll-get-overlay-cache beg end))))
+    (while (< pos end)
+      (let ((width-next (phscroll-char-width-next pos cache)))
+        (setq width (+ width (car width-next)))
+        (setq pos (cdr width-next))))
+    width))
+
+(defun phscroll-string-width (str &optional cache)
   ;;ignore-overlay: (string-width str)
-  (phscroll-text-width (car str) (cdr str))
+  (phscroll-text-width (car str) (cdr str) cache)
   )
 
-(defun phscroll-truncate-string-to-width (str end-column)
+(defun phscroll-truncate-string-to-width (str end-column &optional cache-arg)
   ;;ignore-overlay: (truncate-string-to-width str end-column)
-  (let* ((len (phscroll-string-length str))
-         (width 0)
+  (let* ((width 0)
+         (prev-width 0)
          (beg (car str))
          (end (cdr str))
          (pos beg)
-         (prev-pos pos))
+         (prev-pos pos)
+         (cache (or cache-arg (phscroll-get-overlay-cache beg end))))
     (while (and (< pos end) (<= width end-column))
-      (let ((width-next (phscroll-char-width-next pos)))
+      (let ((width-next (phscroll-char-width-next pos cache)))
         (setq prev-pos pos)
+        (setq prev-width width)
         (setq width (+ width (car width-next)))
         (setq pos (cdr width-next))))
-    (cons beg
-          (if (> width end-column) prev-pos pos))))
+    (if (> width end-column)
+        (cons (cons beg prev-pos) prev-width)
+      (cons (cons beg pos) width))))
 
-(defun phscroll-substring-over-width (str end-column)
+(defun phscroll-substring-over-width (str end-column &optional cache-arg)
   ;;ignore-overlay:
   ;; (let ((len (phscroll-string-length str))
   ;;       (i 0))
   ;;   (while (and (< i len) (< (phscroll-string-width (phscroll-substring str 0 i)) end-column))
   ;;     (setq i (1+ i)))
   ;;   (phscroll-substring str 0 i))
-  (let* ((len (phscroll-string-length str))
-         (width 0)
+  (let* ((width 0)
          (beg (car str))
          (end (cdr str))
-         (pos beg))
+         (pos beg)
+         (cache (or cache-arg (phscroll-get-overlay-cache beg end))))
     (while (and (< pos end) (< width end-column))
-      (let ((width-next (phscroll-char-width-next pos)))
+      (let ((width-next (phscroll-char-width-next pos cache)))
         (setq width (+ width (car width-next)))
         (setq pos (cdr width-next))))
-    (cons beg pos)))
+    (cons (cons beg pos) width)))
 
 
 
