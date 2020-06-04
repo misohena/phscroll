@@ -230,11 +230,14 @@
 
 ;; Area Finding
 
+(defun phscroll-area-from-overlay (ov)
+  (overlay-get ov 'phscroll-area))
+
 (defun phscroll-get-area-at (pos)
   (let (area
         (overlays (overlays-at pos)))
     (while (and overlays
-                (null (setq area (overlay-get (car overlays) 'phscroll-area))))
+                (null (setq area (phscroll-area-from-overlay (car overlays)))))
       (setq overlays (cdr overlays)))
     area))
 
@@ -468,7 +471,7 @@
   (when after
     (let* ((after-length (- end beg))
            (delta-length (- after-length before-length))
-           (area (phscroll-get-area-at beg)))
+           (area (phscroll-area-from-overlay ov)))
       (when area
         (cond
          ((> delta-length 0)
