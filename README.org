@@ -4,6 +4,8 @@
 
 This elisp enables horizontal scrolling in specified parts of buffer even in line-wrapping mode (truncate-lines is nil).
 
+[[file:./phscroll-screenshot.gif]]
+
 * Usage
 
 1. Load phscroll.el (require 'phscroll)
