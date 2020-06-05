@@ -558,7 +558,7 @@
 (defun phscroll-window-end (window)
   ;;@todo pre-redisplay-functions 内では正しい値を返さない。徐々に増えていく場合がある。
   (max
-   (if (window-end window phscroll-use-window-end-update) 0)
+   (or (window-end window phscroll-use-window-end-update) 0)
    ;; window-startからwindow行数だけ進んだ場所。
    ;; 不可視の行がある場合は正しくないが、再描画が終わるまで待つよりは良い場合がある。不可視の行を判定すればたどり着けるかもしれないが、テキストプロパティやオーバーレイを取得しながらだとおそらくかなり遅い。
    (save-excursion
