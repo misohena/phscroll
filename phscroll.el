@@ -575,8 +575,8 @@
 (defun phscroll-update-area-display (area &optional redraw window)
   (when (and area (not phscroll-truncate-lines))
     ;;(message "update-area-display %s redraw=%s window-width=%s" area redraw (window-width window))
-    (if (or redraw
-            (phscroll-area-window-width-changed-p area window))
+    (if (or (phscroll-area-window-width-changed-p area window) ;;First, update area.window-width
+            redraw)
         (phscroll-area-clear-updated-ranges area))
 
     (let* ((scroll-column (phscroll-get-scroll-column area))
