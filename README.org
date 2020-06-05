@@ -1,0 +1,31 @@
+#+TITLE: Partial Horizontal Scroll in Emacs
+
+* About
+
+This elisp enables horizontal scrolling in specified parts of buffer even in line-wrapping mode (truncate-lines is nil).
+
+* Usage
+
+1. Load phscroll.el (require 'phscroll)
+2. Select a region you want to horizontal scroll
+3. M-x phscroll-region
+
+Other commands:
+
+- M-x phscroll-delete-all : Delete all scrolling area in the current buffer
+- M-x phscroll-delete-at : Delete a scrolling area at point
+- M-x phscroll-update-at : Update (redraw) a scrolling area at point
+
+The following keys are available in scrolling area:
+
+- C-x < (M-x phscroll-scroll-left)
+- C-x > (M-x phscroll-scroll-right)
+
+* In org-mode
+
+The following elisp enables horizontal scrolling in table parts of org-mode documents. By setting org-startup-truncated to nil, other parts will be displayed in wrapping.
+
+#+begin_src emacs-lisp
+(setq org-startup-truncated nil)
+(load "org-phscroll.el")
+#+end_src
