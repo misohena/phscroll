@@ -38,6 +38,10 @@
 
 (require 'cl)
 
+(defvar-local phscroll-truncate-lines nil)
+(defvar phscroll-margin-right 4)
+
+
 (define-minor-mode phscroll-mode
 
   "Partial horizontal scroll mode"
@@ -147,10 +151,10 @@
 
 ;; Area Scroll Position
 
-(setq phscroll-interactive-scroll-commands
-      '(phscroll-set-scroll-column
-        phscroll-scroll-left
-        phscroll-scroll-right))
+(defconst phscroll-interactive-scroll-commands
+  '(phscroll-set-scroll-column
+    phscroll-scroll-left
+    phscroll-scroll-right))
 
 (defun phscroll-get-scroll-column (&optional area)
   (nth 1 (or area (phscroll-get-current-area))))
@@ -302,6 +306,8 @@
         ;; convert to relative position
         (setq beg (- beg area-begin))
         (setq end (- end area-begin))
+
+        ;;(message "add-updated-range %s %s to area %s" beg end area)
 
         ;; 2. find first range r1.end [>=] beg
         (let ((prev-r1 (phscroll-area-updated-ranges-head area)))
@@ -513,8 +519,6 @@
           (phscroll-update-area-display area))))))
 
 
-(defvar-local phscroll-truncate-lines nil)
-
 (defun phscroll-check-truncate-lines ()
   (when (not (equal truncate-lines phscroll-truncate-lines))
     (setq phscroll-truncate-lines truncate-lines)
@@ -529,7 +533,7 @@
     (phscroll-update-all-area)))
 
 
-(setq phscroll-keymap
+(defvar phscroll-keymap
       (let ((map (make-sparse-keymap)))
         (define-key map "\C-x<" 'phscroll-scroll-left)
         (define-key map "\C-x>" 'phscroll-scroll-right)
@@ -567,8 +571,6 @@
 ;;
 ;; Area Display
 ;;
-
-(defvar phscroll-margin-right 4)
 
 (defun phscroll-update-area-display (area &optional redraw window)
   (when (and area (not phscroll-truncate-lines))
