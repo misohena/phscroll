@@ -41,9 +41,10 @@
 
         (goto-char start)
         (while (and (< (point) limit) (re-search-forward table-re limit t))
-          (if (null (phscroll-enum-area (max (1- (line-beginning-position)) (point-min))
+          ;; check area already exists on current line
+          (if (null (phscroll-enum-area (line-beginning-position)
                                         (line-end-position)))
-              ;; if area does not already exists, search region of table
+              ;; if area does not already exists, search range of table
               (let ((beg (save-excursion
                            (let ((lastpos (line-beginning-position)))
                              (while (and (= (forward-line -1) 0) (looking-at table-re))
