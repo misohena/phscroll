@@ -494,20 +494,23 @@
            (delta-length (- after-length before-length))
            (area (phscroll-area-from-overlay ov)))
       (when area
-        (cond
-         ((> delta-length 0)
-          (phscroll-area-shift-updated-ranges-after beg delta-length area)
-          (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end end) area))
+        (if (= (phscroll-area-begin area) (phscroll-area-end area))
+            ;; destroy empty area
+            (phscroll-area-destroy area)
+          ;; update modified range
+          (cond
+           ((> delta-length 0)
+            (phscroll-area-shift-updated-ranges-after beg delta-length area)
+            (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end end) area))
 
-         ((< delta-length 0)
-          (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end (+ beg before-length)) area)
-          (phscroll-area-shift-updated-ranges-after end delta-length area))
+           ((< delta-length 0)
+            (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end (+ beg before-length)) area)
+            (phscroll-area-shift-updated-ranges-after end delta-length area))
 
-         (t
-          (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end end) area)))
-
-        ;;;@todo do pre-redisplay only?
-        (phscroll-update-area-display area)))))
+           (t
+            (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end end) area)))
+          ;;;@todo do pre-redisplay only?
+          (phscroll-update-area-display area))))))
 
 
 (defvar-local phscroll-truncate-lines nil)
