@@ -34,7 +34,7 @@
 ;; - [X] remove-overlaysのところ
 ;; - phscroll-update-area-displayが遅い
 ;; - [X] 既存の水平スクロール操作に対応?(scroll-left, scroll-right)
-;; - 複数ウィンドウの挙動、特に左右に分割した場合で左右のサイズが異なる場合はどうしようもない。最小幅を使うしか？　何もしない方が良い？
+;; - [X] 複数ウィンドウの挙動、特に左右に分割した場合で左右のサイズが異なる場合はどうしようもない。最小幅を使うしか？　何もしない方が良い？ →area毎に幅を持って変化をチェックする。
 
 (require 'cl)
 
@@ -47,13 +47,13 @@
     (setq phscroll-truncate-lines truncate-lines)
     (add-hook 'post-command-hook #'phscroll-on-post-command nil t)
     (add-hook 'window-scroll-functions #'phscroll-on-window-scroll nil t)
-    (add-hook 'window-size-change-functions #'phscroll-on-window-size-changed nil t)
+    ;;(add-hook 'window-size-change-functions #'phscroll-on-window-size-changed nil t)
     (add-hook 'pre-redisplay-functions #'phscroll-on-pre-redisplay nil t)
     )
    (t
     (remove-hook 'post-command-hook #'phscroll-on-post-command t)
     (remove-hook 'window-scroll-functions #'phscroll-on-window-scroll t)
-    (remove-hook 'window-size-change-functions #'phscroll-on-window-size-changed t)
+    ;;(remove-hook 'window-size-change-functions #'phscroll-on-window-size-changed t)
     (remove-hook 'pre-redisplay-functions #'phscroll-on-pre-redisplay t)
     )))
 
@@ -128,6 +128,7 @@
                 0  ;; 1:scroll-column
                 ov ;; 2:overlay
                 (list (cons -1 -1)) ;; 3:updated-ranges
+                -1 ;; 4:window-width when last update-area-display
                 )))
     (overlay-put ov 'phscroll t)
     (overlay-put ov 'phscroll-area area)
@@ -192,7 +193,7 @@
               (pos-column (phscroll-string-width
                            (phscroll-buffer-substring
                             (phscroll-line-begin pos) pos)))
-              (window-width (phscroll-window-width pos)))
+              (window-width (phscroll-window-width pos nil)))
           (cond
            ((< pos-column scroll-column)
             (phscroll-set-scroll-column pos-column area))
@@ -206,9 +207,9 @@
               (pos-column (phscroll-string-width
                            (phscroll-buffer-substring
                             (phscroll-line-begin pos) pos)))
-              (window-width (phscroll-window-width pos))
+              (window-width (phscroll-window-width pos nil))
               (step (if (= hscroll-step 0)
-                        (/ (1+ (phscroll-window-width pos)) 2)
+                        (/ (1+ (phscroll-window-width pos nil)) 2)
                       hscroll-step)))
           (cond
            ((< pos-column (+ scroll-column hscroll-margin))
@@ -437,18 +438,36 @@
 
 ;;(phscroll-area-shift-updated-ranges-after 51 10 test-area)
 
+;; Area outer width
+
+;; area毎にレイアウト時のウィンドウ幅を記録している。
+;; 複数のウィンドウが異なる幅を持つ場合にarea毎に別々の幅で表示できると便利なので。
+;; 更新時に以前のウィンドウ幅と変わっている場合は、全ての範囲を無効化して再描画する。
+;; 別々のウィンドウに同じareaが表示される場合はレイアウトが乱れる場合もあるがそれは諦める。
+
+(defun phscroll-area-get-window-width (area)
+  (nth 4 area))
+
+(defun phscroll-area-set-window-width (area width)
+  (setcar (nthcdr 4 area) width))
+
+(defun phscroll-area-window-width-changed-p (area window)
+  (let ((new-width (window-width window))) ;;;@todo find minimum width of (phscroll-window-width line-pos window) ?
+    (when (not (= new-width (phscroll-area-get-window-width area)))
+      (phscroll-area-set-window-width area new-width)
+      t)))
 
 
 ;;
 ;; Event Handlers
 ;;
 
-(defun phscroll-on-window-size-changed (&optional _frame)
-  ;;(message "window-size-changed width beg=%s end=%s width=%s" (window-start) (window-end) (window-width))
-  ;;(phscroll-update-all-area)
-  (phscroll-invalidate-all-area)
-  ;;(phscroll-update-areas-in-window) Do not use. window-start and window-end are not updated
-  )
+;; (defun phscroll-on-window-size-changed (&optional _frame)
+;;   ;;(message "window-size-changed width beg=%s end=%s width=%s" (window-start) (window-end) (window-width))
+;;   ;;(phscroll-update-all-area) ;;Too slow
+;;   ;;(phscroll-update-areas-in-window) ;;Do not use. window-start and window-end are not updated
+;; ;;  (phscroll-invalidate-all-area) ;;Use phscroll-area-window-width-changed-p
+;;   )
 
 (defun phscroll-on-post-command ()
   ;(message "on post command window-end=%s" (window-end))
@@ -538,8 +557,8 @@
      (forward-line (window-body-height window))
      (point))))
 
-(defun phscroll-window-width (pos)
-  (- (window-width) phscroll-margin-right (length (get-text-property pos 'wrap-prefix))))
+(defun phscroll-window-width (pos window)
+  (- (window-width window) phscroll-margin-right (length (get-text-property pos 'wrap-prefix))))
 
 
 ;;
@@ -550,7 +569,10 @@
 
 (defun phscroll-update-area-display (area &optional redraw window)
   (when (and area (not phscroll-truncate-lines))
-    (if redraw (phscroll-area-clear-updated-ranges area))
+    ;;(message "update-area-display %s redraw=%s window-width=%s" area redraw (window-width window))
+    (if (or redraw
+            (phscroll-area-window-width-changed-p area window))
+        (phscroll-area-clear-updated-ranges area))
 
     (let* ((scroll-column (phscroll-get-scroll-column area))
            (area-begin (phscroll-area-begin area))
@@ -561,29 +583,31 @@
       (when (and (< update-begin update-end)
                  (phscroll-area-needs-update-range update-begin update-end area))
         ;; for each lines
-        (save-excursion
-          (goto-char update-begin)
-          (beginning-of-line)
-          (while (< (point) update-end)
-            (let ((line-begin (line-beginning-position))
-                  (line-end (line-end-position)))
-              (when (phscroll-area-needs-update-range line-begin line-end area)
-                ;;(message "update line %d" (point))
-                (remove-overlays line-begin (1+ line-end) 'phscroll-left t) ;;include line-break
-                (remove-overlays line-begin (1+ line-end) 'phscroll-right t) ;;include line-break
-                (phscroll-update-current-line-display scroll-column))
-              (forward-line))))
-
+        (phscroll-update-area-lines-display area scroll-column update-begin update-end window)
         ;; add updated range
         (phscroll-area-add-updated-range update-begin update-end area)
         ))))
 
-(defun phscroll-update-current-line-display (scroll-column)
+(defun phscroll-update-area-lines-display (area scroll-column update-begin update-end window)
+  (save-excursion
+    (goto-char update-begin)
+    (beginning-of-line)
+    (while (< (point) update-end)
+      (let ((line-begin (line-beginning-position))
+            (line-end (line-end-position)))
+        (when (phscroll-area-needs-update-range line-begin line-end area)
+          ;;(message "update line %d" (point))
+          (remove-overlays line-begin (1+ line-end) 'phscroll-left t) ;;include line-break
+          (remove-overlays line-begin (1+ line-end) 'phscroll-right t) ;;include line-break
+          (phscroll-update-current-line-display scroll-column window))
+        (forward-line)))))
+
+(defun phscroll-update-current-line-display (scroll-column window)
   ;; | line                            |
   ;; | left(9) | middle(14)   | right  |  <part(limit)
   ;; |ABCDEFGHI|JKLMNOPQRSTUVW|XYZ01234|
   ;; |あいうえおかきくけこ
-  (let* ((window-width (phscroll-window-width (point)))
+  (let* ((window-width (phscroll-window-width (point) window))
          ;; current line
          (line-str (phscroll-current-line-string))
          (line-begin (line-beginning-position))
