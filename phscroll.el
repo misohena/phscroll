@@ -154,7 +154,9 @@
 (defconst phscroll-interactive-scroll-commands
   '(phscroll-set-scroll-column
     phscroll-scroll-left
-    phscroll-scroll-right))
+    phscroll-scroll-right
+    phscroll-recenter
+    phscroll-recenter-left-right))
 
 (defun phscroll-get-scroll-column (&optional area)
   (nth 1 (or area (phscroll-get-current-area))))
@@ -189,14 +191,16 @@
    (- (if arg (prefix-numeric-value arg) (- (window-width) 2 phscroll-margin-right 4)))
    area))
 
+(defun phscroll-column (pos)
+  (phscroll-string-width
+   (phscroll-buffer-substring
+    (phscroll-line-begin pos) pos)))
 
 (defun phscroll-show-point (pos)
   (let ((area (phscroll-get-area-at pos)))
     (if area
         (let ((scroll-column (phscroll-get-scroll-column area))
-              (pos-column (phscroll-string-width
-                           (phscroll-buffer-substring
-                            (phscroll-line-begin pos) pos)))
+              (pos-column (phscroll-column pos))
               (window-width (phscroll-window-width pos nil)))
           (cond
            ((< pos-column scroll-column)
@@ -208,9 +212,7 @@
   (let ((area (phscroll-get-area-at pos)))
     (if area
         (let ((scroll-column (phscroll-get-scroll-column area))
-              (pos-column (phscroll-string-width
-                           (phscroll-buffer-substring
-                            (phscroll-line-begin pos) pos)))
+              (pos-column (phscroll-column pos))
               (window-width (phscroll-window-width pos nil))
               (step (if (= hscroll-step 0)
                         (/ (1+ (phscroll-window-width pos nil)) 2)
@@ -220,6 +222,65 @@
             (phscroll-set-scroll-column (max 0 (- pos-column hscroll-margin step)) area))
            ((> pos-column (+ scroll-column (- window-width hscroll-margin)))
             (phscroll-set-scroll-column (+ (- pos-column window-width) hscroll-margin step) area)))))))
+
+(defun phscroll-recenter (&optional arg)
+  (interactive "P")
+  (let* ((pos (point))
+         (pos-column (phscroll-column pos))
+         (area (phscroll-get-area-at pos)))
+    (if area
+        (phscroll-set-scroll-column
+         (- pos-column
+            (if arg
+                (let ((n (prefix-numeric-value arg)))
+                  (if (>= n 0) n (+ (phscroll-window-width pos nil) n)))
+              (/ (phscroll-window-width pos nil) 2)))
+         area))))
+
+(defvar phscroll-recenter-last-op nil)
+(defcustom phscroll-recenter-positions '(center left right)
+  "Cycling order for `phscroll-recenter-left-right'.
+Like a recenter-top-bottom."
+  :type '(repeat (choice
+                  (const :tag "Left" left)
+                  (const :tag "Center" center)
+                  (const :tag "Right" right)
+                  (integer :tag "Column number")
+                  (float :tag "Percentage")))
+  :group 'phscroll)
+
+(defun phscroll-recenter-left-right (&optional arg)
+  ;; The foloweing code was copied and modified from
+  ;; recenter-top-bottom in window.el
+  (interactive "P")
+  (cond
+   (arg (phscroll-recenter arg))
+   (t
+    (setq phscroll-recenter-last-op
+          (car (or
+                (if (eq this-command last-command)
+                    (cdr (member phscroll-recenter-last-op
+                                 phscroll-recenter-positions)))
+                phscroll-recenter-positions)))
+    (let* ((win-width (phscroll-window-width (point) nil))
+           (this-scroll-margin
+            (min (max 0 hscroll-margin)
+                 (truncate (/ win-width 4.0)))))
+      (cond ((eq phscroll-recenter-last-op 'center)
+             (phscroll-recenter))
+            ((eq phscroll-recenter-last-op 'left)
+             (phscroll-recenter this-scroll-margin))
+            ((eq phscroll-recenter-last-op 'right)
+             (phscroll-recenter (- -1 this-scroll-margin)))
+            ((integerp phscroll-recenter-last-op)
+             (phscroll-recenter phscroll-recenter-last-op))
+            ((floatp phscroll-recenter-last-op)
+             (phscroll-recenter (round (* phscroll-recenter-last-op win-width)))))))))
+
+(defun phscroll-recenter-top-bottom (&optional _arg)
+  (interactive "P")
+  (call-interactively #'recenter-top-bottom)
+  (phscroll-recenter))
 
 
 ;; Area Overlay
@@ -537,6 +598,8 @@
       (let ((map (make-sparse-keymap)))
         (define-key map "\C-x<" 'phscroll-scroll-left)
         (define-key map "\C-x>" 'phscroll-scroll-right)
+        (define-key map (kbd "C-S-l") 'phscroll-recenter-left-right)
+        (define-key map (kbd "C-l") 'phscroll-recenter-top-bottom)
         map))
 (defun phscroll-area-set-keymap (area)
   (if area

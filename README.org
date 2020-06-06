@@ -22,6 +22,8 @@ The following keys are available in scrolling area:
 
 - C-x < (M-x phscroll-scroll-left)
 - C-x > (M-x phscroll-scroll-right)
+- C-l (M-x phscroll-recenter-top-bottom)
+- C-S-l (M-x phscroll-recenter-left-right)
 
 * In org-mode
 
