@@ -65,7 +65,9 @@
   "Make a partial horizontal scroll area."
   (interactive "r")
   (setq beg (phscroll-line-begin beg))
-  (setq end (phscroll-line-end end))
+  (setq end (if (save-excursion (goto-char end) (bolp))
+                end
+              (phscroll-line-end end)))
 
   (when (< beg end)
     ;; turn on phscroll-mode
