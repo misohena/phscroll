@@ -36,8 +36,6 @@
 ;; - [X] 既存の水平スクロール操作に対応?(scroll-left, scroll-right)
 ;; - [X] 複数ウィンドウの挙動、特に左右に分割した場合で左右のサイズが異なる場合はどうしようもない。最小幅を使うしか？　何もしない方が良い？ →area毎に幅を持って変化をチェックする。
 
-(require 'cl)
-
 (defvar-local phscroll-truncate-lines nil)
 (defvar phscroll-margin-right 4)
 
@@ -84,8 +82,8 @@
             (phscroll-area-move area beg end)
             (phscroll-update-area-display area)
             ;; destroy other overlap areas
-            (loop for ooa in (cdr overlap-areas)
-                  do (phscroll-area-destroy ooa)))
+            (cl-loop for ooa in (cdr overlap-areas)
+                     do (phscroll-area-destroy ooa)))
         ;; create new area
         (setq area (phscroll-area-create beg end))
         (phscroll-update-area-display area t))
@@ -98,8 +96,8 @@
 
 (defun phscroll-delete-all ()
   (interactive)
-  (loop for area in (phscroll-enum-area)
-        do (phscroll-area-destroy area)))
+  (cl-loop for area in (phscroll-enum-area)
+           do (phscroll-area-destroy area)))
 
 (defun phscroll-update-at (&optional pos)
   (interactive "d")
@@ -517,21 +515,21 @@ Like a recenter-top-bottom."
   (interactive "r")
 
   (let* ((overlays (overlays-in (or beg (point-min)) (or end (point-max)))))
-    (loop for ov in overlays
-          if (overlay-get ov 'phscroll-area)
-          collect (overlay-get ov 'phscroll-area))))
+    (cl-loop for ov in overlays
+             if (overlay-get ov 'phscroll-area)
+             collect (overlay-get ov 'phscroll-area))))
 
 (defun phscroll-update-all-area ()
   (save-restriction
     (widen)
-    (loop for area in (phscroll-enum-area)
-          do (phscroll-update-area-display area t))))
+    (cl-loop for area in (phscroll-enum-area)
+             do (phscroll-update-area-display area t))))
 
 (defun phscroll-invalidate-all-area ()
   (save-restriction
     (widen)
-    (loop for area in (phscroll-enum-area)
-          do (phscroll-area-clear-updated-ranges area))))
+    (cl-loop for area in (phscroll-enum-area)
+             do (phscroll-area-clear-updated-ranges area))))
 
 (defun phscroll-areas-in-window (&optional window)
   (phscroll-enum-area
@@ -539,8 +537,8 @@ Like a recenter-top-bottom."
    (max (phscroll-window-end window))))
 
 (defun phscroll-update-areas-in-window (&optional redraw window)
-  (loop for area in (phscroll-areas-in-window window)
-        do (phscroll-update-area-display area redraw window)))
+  (cl-loop for area in (phscroll-areas-in-window window)
+           do (phscroll-update-area-display area redraw window)))
 
 ;;
 ;; Updated Range Management
@@ -684,7 +682,7 @@ Like a recenter-top-bottom."
         (setq end (- end area-begin))
 
         (not
-         (find-if
+         (cl-find-if
           (lambda (range) (and (<= (car range) beg) (<= end (cdr range))))
           (phscroll-area-updated-ranges-head area)))))))
 
@@ -747,7 +745,7 @@ Like a recenter-top-bottom."
   ;(message "on post command window-end=%s" (window-end))
   ;;(phscroll-show-point (point))
 
-  (unless (find this-command phscroll-interactive-scroll-commands)
+  (unless (cl-find this-command phscroll-interactive-scroll-commands)
     (phscroll-scroll-point (point)))
   ;;(phscroll-update-area-display (phscroll-get-area-at (point)))
   (phscroll-update-areas-in-window nil nil)
@@ -792,11 +790,11 @@ Like a recenter-top-bottom."
     (setq phscroll-truncate-lines truncate-lines)
     (if phscroll-truncate-lines
         ;; remove left, right overlays
-        (loop for area in (phscroll-enum-area)
-              do (let ((beg (phscroll-area-begin area))
-                       (end (phscroll-area-end area)))
-                   (remove-overlays beg end 'phscroll-left t)
-                   (remove-overlays beg end 'phscroll-right t))))
+        (cl-loop for area in (phscroll-enum-area)
+                 do (let ((beg (phscroll-area-begin area))
+                          (end (phscroll-area-end area)))
+                      (remove-overlays beg end 'phscroll-left t)
+                      (remove-overlays beg end 'phscroll-right t))))
     ;; remove update-ranges and redraw
     (phscroll-update-all-area)))
 
