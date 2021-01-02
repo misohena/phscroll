@@ -79,27 +79,10 @@
            (area (car overlap-areas)))
       (if area
           ;; reuse area
-          (let* ((ov (phscroll-area-overlay area))
-                 (area-beg (overlay-start ov))
-                 (area-end (overlay-end ov)))
-            ;; if area range changed
-            (when (or (not (= area-beg beg))
-                      (not (= area-end end)))
-              ;; maintain updated-ranges
-              ;; (adjust related position & remove ranges out of area)
-              (cond
-               ((< beg area-beg)
-                (phscroll-area-shift-updated-ranges-after area-beg (- area-beg beg) area))
-               ((> beg area-beg)
-                (phscroll-area-remove-updated-range area-beg beg area)
-                (phscroll-area-shift-updated-ranges-after area-beg (- area-beg beg) area))
-               ((< end area-end)
-                (phscroll-area-remove-updated-range end area-end area)))
-
-              ;; move overlay
-              (move-overlay ov beg end)
-              ;; update new area range
-              (phscroll-update-area-display area))
+          (progn
+            ;; reuse area
+            (phscroll-area-move area beg end)
+            (phscroll-update-area-display area)
             ;; destroy other overlap areas
             (loop for ooa in (cdr overlap-areas)
                   do (phscroll-area-destroy ooa)))
@@ -122,23 +105,91 @@
   (interactive "d")
   (phscroll-update-area-display (phscroll-get-area-at pos) t))
 
+(defun phscroll-merge-region (beg end &optional no-update)
+  "Merge all areas that overlap the region BEG ... END."
+  (interactive "r")
+  (let* ((areas (sort (phscroll-enum-area beg end)
+                      (lambda (a1 a2)
+                        (< (phscroll-area-begin a1) (phscroll-area-begin a2)))))
+         (result (car areas)))
+    (setq areas (cdr areas))
+    (while areas
+      (phscroll-area-merge result (car areas))
+      (setq areas (cdr areas)))
+    (if (and result (not no-update))
+        (phscroll-update-area-display result))
+    result))
+
+(defun phscroll-cover-region (beg end)
+  "Cover the region BEG ... END with a single phscroll area."
+  (interactive "r")
+
+  (if-let ((area (phscroll-merge-region beg end t)));;no-update=t
+      (let ((area-beg (phscroll-area-begin area))
+            (area-end (phscroll-area-end area)))
+        (if (or (< beg area-beg) (< area-end end))
+            (phscroll-area-move area
+                                (min beg area-beg)
+                                (max end area-end)))
+        (phscroll-update-area-display area))
+    (phscroll-region beg end)))
+
+(defun phscroll-remove-region (beg end)
+  "Remove phscroll areas from the region BEG ... END.
+
+Areas that overlap the region will be deleted, moved, or splitted."
+  (interactive "r")
+
+  (dolist (area (phscroll-enum-area beg end))
+    (let ((area-beg (phscroll-area-begin area))
+          (area-end (phscroll-area-end area)))
+      (cond
+       ;; keep area
+       ((<= area-end beg) nil)
+       ((<= end area-beg) nil)
+       ;; delete area
+       ((and (<= beg area-beg) (<= area-end end))
+        (phscroll-area-destroy area))
+       ;; split area
+       ((and (< area-beg beg) (< end area-end))
+        (phscroll-area-split area end)
+        (phscroll-area-move area area-beg beg)
+        (phscroll-update-area-display area);;unnecessary
+        )
+       ;; move area
+       ((< area-beg beg)
+        (phscroll-area-move area area-beg beg)
+        (phscroll-update-area-display area);;unnecessary
+        )
+       ((< end area-end)
+        (phscroll-area-move area end area-end)
+        (phscroll-update-area-display area);;unnecessary
+        )))))
+
 
 ;;
 ;; Area object
 ;;
 
-(defun phscroll-area-create (beg end)
+(defun phscroll-area-create (beg end &optional evaporate
+                                 init-scroll-column
+                                 init-updated-ranges
+                                 init-window-width)
+  ;;(message "create %s %s" beg end)
   (let* ((ov (make-overlay beg end))
          (area (list
                 'phscroll ;;0
-                0  ;; 1:scroll-column
+                (or init-scroll-column 0)  ;; 1:scroll-column
                 ov ;; 2:overlay
-                (list (cons -1 -1)) ;; 3:updated-ranges
-                -1 ;; 4:window-width when last update-area-display
+                (append (list (cons -1 -1))
+                        init-updated-ranges);; 3:updated-ranges
+                (or init-window-width -1) ;; 4:window-width when last update-area-display
                 )))
     (overlay-put ov 'phscroll t)
     (overlay-put ov 'phscroll-area area)
     (overlay-put ov 'modification-hooks (list #'phscroll-on-modified))
+    (if evaporate
+        (overlay-put ov 'evaporate t))
     (phscroll-area-set-keymap area)
     area))
 
@@ -150,6 +201,154 @@
       (remove-overlays beg end 'phscroll-left t)
       (remove-overlays beg end 'phscroll-right t)
       (delete-overlay ov))))
+
+
+(defun phscroll-area-move (area beg end &optional update)
+  "Set the endpoints of AREA to BEG and END."
+  (when (and area (<= beg end))
+    (let* ((ov (phscroll-area-overlay area))
+           (old-beg (overlay-start ov))
+           (old-end (overlay-end ov)))
+      ;; If area range changed
+      (when (or (/= old-beg beg)
+                (/= old-end end))
+        ;; Remove ranges outside the new area from updated ranges list
+        ;; and remove left and right overlays
+        (if (or (<= old-end beg) (<= end old-beg))
+            ;; If there is no overlap between old and new, simply remove old
+            (progn
+              (phscroll-area-clear-updated-ranges area)
+              (remove-overlays old-beg old-end 'phscroll-left t)
+              (remove-overlays old-beg old-end 'phscroll-right t))
+          ;; If overlap, remove protruding part
+          (when (< old-beg beg)
+            (phscroll-area-remove-updated-range old-beg beg area)
+            (remove-overlays old-beg beg 'phscroll-left t)
+            (remove-overlays old-beg beg 'phscroll-right t))
+          (when (< end old-end)
+            (phscroll-area-remove-updated-range end old-end area)
+            (remove-overlays end old-end 'phscroll-left t)
+            (remove-overlays end old-end 'phscroll-right t)))
+        ;; Shift relative positions in updated ranges list
+        (if (/= old-beg beg)
+            (phscroll-area-shift-updated-ranges-after old-beg (- old-beg beg)
+                                                      area))
+
+        ;; Move overlay
+        (move-overlay ov beg end)
+
+        ;; Update new area range
+        (if update
+            (phscroll-update-area-display area)))))
+  area)
+
+(defun phscroll-area-merge (to-area from-area &optional update)
+  "Merge FROM-AREA to TO-AREA."
+  (when (and to-area from-area)
+    (let* ((to-ov (phscroll-area-overlay to-area))
+           (to-beg (overlay-start to-ov))
+           (to-end (overlay-end to-ov))
+           (from-ov (phscroll-area-overlay from-area))
+           (from-beg (overlay-start from-ov))
+           (from-end (overlay-end from-ov))
+           (overlap-beg (max to-beg from-beg))
+           (overlap-end (min to-end from-end))
+           (new-beg (min to-beg from-beg))
+           (new-end (max to-end from-end)))
+
+      (if (/= (phscroll-area-get-window-width to-area)
+              (phscroll-area-get-window-width from-area))
+          (progn
+            (phscroll-area-move to-area new-beg new-end)
+            (move-overlay from-ov new-end new-end)
+            (delete-overlay from-ov))
+        ;; same window width
+
+        ;; Remove updated-ranges in overlapping area from to-area and from-area.
+        ;; If overlap, they may be broken.
+        (when (< overlap-beg overlap-end)
+          (phscroll-area-remove-updated-range overlap-beg overlap-end to-area)
+          (phscroll-area-remove-updated-range overlap-beg overlap-end from-area))
+
+        ;; Shift relative positions in updated-ranges
+        (phscroll-area-shift-updated-ranges-after to-beg (- to-beg new-beg) to-area)
+        (phscroll-area-shift-updated-ranges-after from-beg (- from-beg new-beg) from-area)
+
+        ;; Concat updated-ranges list
+        (phscroll-area-updated-ranges-set
+         to-area
+         (let* ((lower-ranges (phscroll-area-updated-ranges-get
+                               (if (< to-beg from-beg) to-area from-area)))
+                (upper-ranges (phscroll-area-updated-ranges-get
+                               (if (< to-beg from-beg) from-area to-area)))
+                (last-lower (car (last lower-ranges)))
+                (first-upper (car upper-ranges)))
+
+           ;; Merge last of lower ranges and first of upper ranges
+           ;;..(last-beg . last-end=first-beg)(last-end=first-beg . first-end)..
+           ;;..(last-beg . first-end)..
+           (when (and last-lower
+                      first-upper
+                      (= (cdr last-lower) (car first-upper)))
+             (setcdr last-lower (cdr first-upper))
+             (setq upper-ranges (cdr upper-ranges)))
+
+           ;; Concat list
+           (nconc lower-ranges upper-ranges)))
+
+        ;; Move overlay
+        (move-overlay to-ov new-beg new-end)
+        (move-overlay from-ov new-end new-end)
+
+        ;; Delete from-ov
+        (delete-overlay from-ov)))
+    (if update
+        (phscroll-update-area-display to-area)))
+  to-area)
+
+(defun phscroll-area-split (area pos)
+  "Split AREA at POS.
+
+AREA will be the first half of the divided area.
+
+Return a new area that is the second half of the divided area."
+  (when area
+    (let* ((area-ov (phscroll-area-overlay area))
+           (area-beg (overlay-start area-ov))
+           (area-end (overlay-end area-ov)))
+      (when (and (< area-beg pos) (< pos area-end))
+
+        (let ((prev-r (phscroll-area-updated-ranges-head area))
+              (rel-pos (- pos area-beg))
+              new-updated-ranges)
+          ;; Find first range r.end > pos
+          (while (and (cdr prev-r) (<= (cdadr prev-r) rel-pos))
+            (setq prev-r (cdr prev-r)))
+          ;; If r.beg < pos, split r
+          (if (< (caadr prev-r) rel-pos)
+              (progn
+                (setq new-updated-ranges
+                      (cons
+                       (cons rel-pos (cdadr prev-r))
+                       (cddr prev-r)))
+                (setf (cdadr prev-r) rel-pos)
+                (setf (cddr prev-r) nil))
+            ;; pos <= r.beg and r.end
+            (setq new-updated-ranges (cdr prev-r))
+            (setcdr prev-r nil))
+          ;; Move overlay first half
+          (move-overlay area-ov area-beg pos)
+
+          ;; Create a area second half
+          (let ((new-area (phscroll-area-create
+                           pos area-end
+                           (overlay-get area-ov 'evaporate)
+                           (phscroll-get-scroll-column area)
+                           new-updated-ranges
+                           (phscroll-area-get-window-width area))))
+            ;; Shift updated ranges
+            (phscroll-area-shift-updated-ranges-after pos (- area-beg pos) new-area)
+            new-area))))))
 
 ;; Area Scroll Position
 
@@ -352,10 +551,16 @@ Like a recenter-top-bottom."
 (defun phscroll-area-updated-ranges-head (area)
   (nth 3 area))
 
-(defun phscroll-area-clear-updated-ranges (area)
+(defun phscroll-area-updated-ranges-get (area)
+  (cdr (phscroll-area-updated-ranges-head area)))
+
+(defun phscroll-area-updated-ranges-set (area ranges)
   (when area
-    (setcdr (nth 3 area) nil))
+    (setcdr (nth 3 area) ranges))
   area)
+
+(defun phscroll-area-clear-updated-ranges (area)
+  (phscroll-area-updated-ranges-set area nil))
 
 (defun phscroll-area-add-updated-range (beg end area)
   ;; 1. check and normalize range (beg, end), if empty then exit
@@ -486,7 +691,7 @@ Like a recenter-top-bottom."
 ;;(phscroll-area-needs-update-range 21 23 test-area)
 
 (defun phscroll-area-shift-updated-ranges-after (pos delta area)
-  (when area
+  (when (and area (/= delta 0))
     (let ((area-begin (phscroll-area-begin area))
           (r (cdr (phscroll-area-updated-ranges-head area))))
 
