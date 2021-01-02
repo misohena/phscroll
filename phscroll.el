@@ -844,6 +844,9 @@ Like a recenter-top-bottom."
 ;; Area Display
 ;;
 
+(defvar-local phscroll-fontify-range nil
+  "Fontifying range (BEG . END)")
+
 (defun phscroll-update-area-display (area &optional redraw window)
   (when (and area (not phscroll-truncate-lines))
     ;;(message "update-area-display %s redraw=%s window-width=%s" area redraw (window-width window))
@@ -854,8 +857,20 @@ Like a recenter-top-bottom."
     (let* ((scroll-column (phscroll-get-scroll-column area))
            (area-begin (phscroll-area-begin area))
            (area-end (phscroll-area-end area))
-           (update-begin (max area-begin (phscroll-line-begin (phscroll-window-start window))))
-           (update-end (min area-end (phscroll-window-end window))))
+           ;; If in fontify, do not use window-begin and window-end.
+           ;; area-begin, area-end are already windowed.
+           (update-begin (if phscroll-fontify-range
+                             (max area-begin
+                                  (phscroll-line-begin
+                                   (car phscroll-fontify-range)))
+                           (max area-begin
+                                (phscroll-line-begin
+                                 (phscroll-window-start window)))))
+           (update-end (if phscroll-fontify-range
+                           (min area-end (cdr phscroll-fontify-range))
+                         (min area-end (phscroll-window-end window)))))
+
+      ;;(message "update-area-display %s redraw=%s window-width=%s update-range=(%s %s)" area redraw (window-width window) update-begin update-end)
 
       (when (and (< update-begin update-end)
                  (phscroll-area-needs-update-range update-begin update-end area))
@@ -904,6 +919,8 @@ Like a recenter-top-bottom."
          (middle-width (cdr middle-str-width))
          (middle-shortage (- middle-limit-width middle-width))
          (middle-len (phscroll-string-length middle-str)))
+
+    ;;(message "update-current-line-display point=%s window-width=%s" (point) window-width)
 
     (when (> scroll-column 0)
       (let ((ov (make-overlay line-begin (+ line-begin left-len))))
