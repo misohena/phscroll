@@ -1039,14 +1039,14 @@ Like a recenter-top-bottom."
     (cond
      ;; overlays
      ((setq ovc (phscroll-get-overlay-at pos cache))
-      (case (phscroll-ovc-type ovc)
+      (pcase (phscroll-ovc-type ovc)
         ('display (cons
                    (phscroll-display-property-width (phscroll-ovc-pvalue ovc))
                    (phscroll-ovc-end ovc)))
         ('invisible (cons
                      (phscroll-invisible-property-width (phscroll-ovc-pvalue ovc))
                      (phscroll-ovc-end ovc)))
-        (t (cons 1 (1+ pos)))))
+        (_ (cons 1 (1+ pos)))))
 
      ;; display text property
      ((setq display (get-text-property pos 'display))
