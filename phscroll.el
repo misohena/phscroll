@@ -868,16 +868,18 @@ Like a recenter-top-bottom."
            (area-end (phscroll-area-end area))
            ;; If in fontify, do not use window-begin and window-end.
            ;; area-begin, area-end are already windowed.
-           (update-begin (if phscroll-fontify-range
-                             (max area-begin
+           (update-begin (max area-begin
+                              (point-min) ;;narrowed
+                              (if phscroll-fontify-range
                                   (phscroll-line-begin
-                                   (car phscroll-fontify-range)))
-                           (max area-begin
+                                   (car phscroll-fontify-range))
                                 (phscroll-line-begin
                                  (phscroll-window-start window)))))
-           (update-end (if phscroll-fontify-range
-                           (min area-end (cdr phscroll-fontify-range))
-                         (min area-end (phscroll-window-end window)))))
+           (update-end (min area-end
+                            (point-max) ;;narrowed
+                            (if phscroll-fontify-range
+                                (cdr phscroll-fontify-range)
+                              (phscroll-window-end window)))))
 
       ;;(message "update-area-display %s redraw=%s window-width=%s update-range=(%s %s)" area redraw (window-width window) update-begin update-end)
 
@@ -901,7 +903,10 @@ Like a recenter-top-bottom."
           (remove-overlays line-begin (1+ line-end) 'phscroll-left t) ;;include line-break
           (remove-overlays line-begin (1+ line-end) 'phscroll-right t) ;;include line-break
           (phscroll-update-current-line-display scroll-column window))
-        (forward-line)))))
+        (when (> (forward-line) 0)
+          (message "Unable to reach UPDATE-END in phscroll-update-area-lines-display")
+          (setq update-end (point))) ;;forced termination
+        ))))
 
 (defun phscroll-update-current-line-display (scroll-column window)
   ;; | line                            |
