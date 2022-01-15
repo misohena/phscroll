@@ -177,8 +177,14 @@
                 (cond
                  ;; Text's display
                  ((setq pvalue (get-text-property pos 'display))
-                  (when (stringp pvalue)
+                  (cond
+                   ((stringp pvalue)
                     (push pvalue visible-strs))
+                   ((and (consp pvalue)
+                         (eq (car pvalue) 'space)
+                         (eq (cadr pvalue) :relative-width)
+                         (integerp (caddr pvalue)))
+                    (push (make-string (caddr pvalue) (char-after pos)) visible-strs)))
                   (setq next-pos
                         (next-single-char-property-change pos 'display)))
                  ;; Text's invisible
