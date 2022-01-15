@@ -104,7 +104,7 @@
               (phscroll-remove-region not-table-beg limit)))))
     ret-val))
 
-;; Support for table column shrink/expand
+;;;; Support for table column shrink/expand
 
 (defun org-phscroll-invalidate-table (pos)
   (when-let ((area (phscroll-get-area-at pos)))
@@ -126,15 +126,107 @@
   (when beg
     (org-phscroll-invalidate-table beg)))
 
-;; Support for org-table-overlay-coordinates
+;;;; Support for org-table-overlay-coordinates
 
 (defun org-phscroll--table-toggle-coordinate-overlays (&rest _)
   (org-phscroll-invalidate-table (point)))
 
-;; Support for org-indent
+;;;; Support for org-table-header-line-mode
+
+(defun org-phscroll--after-table-header-line-mode (&rest _)
+  ;; Cancel post-command-hook.
+  ;; Use phscroll's post-command-hook only.
+  (remove-hook 'post-command-hook #'org-table-header-set-header t))
+
+(defun org-phscroll--table-row-get-visible-string (old-func &optional beg)
+  (unless beg
+    (setq beg (point)))
+  (let ((area (phscroll-get-area-at beg)))
+    (if (null area)
+        ;; Call original
+        (funcall old-func beg)
+      ;; In phscroll area
+      (save-excursion
+
+        ;;@todo Is it possible to unify with around phscroll-char-width-next?
+        ;;@todo Support more properties
+        (let ((pos (phscroll-line-begin beg))
+              (eol (phscroll-line-end beg))
+              visible-strs)
+
+          (while (< pos eol)
+            (let (next-pos pvalue)
+              ;; Overlay
+              (let ((overlays (overlays-at pos t)))
+                (while (and overlays (null next-pos))
+                  (let ((ov (car overlays)))
+                    (unless (overlay-get ov 'phscroll)
+                      (cond
+                       ;; Overlay's display
+                       ((setq pvalue (overlay-get ov 'display))
+                        (when (stringp pvalue)
+                          (push pvalue visible-strs))
+                        (setq next-pos (overlay-end ov)))
+                       ;; Overlay's invisible
+                       ((and (setq pvalue (overlay-get ov 'invisible))
+                             (invisible-p pvalue))
+                        (setq next-pos (overlay-end ov))))))
+                  (setq overlays (cdr overlays))))
+              ;; Text property
+              (unless next-pos
+                (cond
+                 ;; Text's display
+                 ((setq pvalue (get-text-property pos 'display))
+                  (when (stringp pvalue)
+                    (push pvalue visible-strs))
+                  (setq next-pos
+                        (next-single-char-property-change pos 'display)))
+                 ;; Text's invisible
+                 ((and (setq pvalue (get-text-property pos 'invisible))
+                       (invisible-p pvalue))
+                  (setq next-pos
+                        (next-single-char-property-change pos 'invisible)))
+                 ;; Character
+                 (t
+                  (push (char-to-string (char-after pos)) visible-strs)
+                  (setq next-pos (1+ pos)))))
+              (setq pos next-pos)))
+
+          (let* ((win-width (phscroll-window-width beg nil))
+                 (scroll-column (phscroll-get-scroll-column area))
+                 (visible-str (apply #'concat (nreverse visible-strs)))
+                 (result (truncate-string-to-width
+                          visible-str
+                          (+ scroll-column win-width)
+                          scroll-column ?\s)))
+            ;;(message "result=%s" result)
+            result))))))
+
+(defun org-phscroll--around-post-command-in-header-line-mode (old-func &rest args)
+  (if org-table-header-line-mode
+      (progn
+        ;; Delete overlay before phscroll process
+        (when (overlayp org-table-header-overlay)
+          (delete-overlay org-table-header-overlay)
+          (setq org-table-header-overlay nil))
+        ;; Call phscroll process
+        (prog1 (apply old-func args)
+          ;; Update header line
+          (ignore-errors
+            (org-table-header-set-header))
+          (when org-table-header-overlay
+            (overlay-put org-table-header-overlay 'phscroll-ignore t)
+            (let ((win-start (overlay-start org-table-header-overlay)))
+              (move-overlay org-table-header-overlay
+                            (phscroll-line-begin win-start)
+                            (phscroll-line-end win-start))))))
+    ;; Not in header line mode
+    (apply old-func args)))
+
+;;;; Support for org-indent
 
 (defun org-phscroll-invalidate-indent (beg end)
-  (message "invalidate %s %s" beg end)
+  ;;(message "invalidate %s %s" beg end)
   (dolist (area (phscroll-enum-area beg end))
     (phscroll-area-remove-updated-range beg end area)
     ;;(phscroll-area-clear-updated-ranges area)
@@ -143,7 +235,7 @@
 (defun org-phscroll--indent-add-properties (beg end &optional delay)
   (org-phscroll-invalidate-indent beg end))
 
-;; Hook global functions
+;;;; Hook global functions
 
 (defun org-phscroll-activate ()
   (interactive)
@@ -157,6 +249,13 @@
   ;; for org-table-overlay-coordinates
   (advice-add #'org-table-toggle-coordinate-overlays
               :after #'org-phscroll--table-toggle-coordinate-overlays)
+  ;; for org-table-header-line-mode
+  (advice-add #'org-table-header-line-mode
+              :after #'org-phscroll--after-table-header-line-mode)
+  (advice-add #'org-table-row-get-visible-string
+              :around #'org-phscroll--table-row-get-visible-string)
+  (advice-add #'phscroll-on-post-command
+              :around #'org-phscroll--around-post-command-in-header-line-mode)
   ;; for indent
   (advice-add #'org-indent-add-properties
               :after #'org-phscroll--indent-add-properties))
@@ -173,6 +272,13 @@
   ;; for org-table-overlay-coordinates
   (advice-remove #'org-table-toggle-coordinate-overlays
                  #'org-phscroll--table-toggle-coordinate-overlays)
+  ;; for org-table-header-line-mode
+  (advice-remove #'org-table-header-line-mode
+                 #'org-phscroll--after-table-header-line-mode)
+  (advice-remove #'org-table-row-get-visible-string
+                 #'org-phscroll--table-row-get-visible-string)
+  (advice-remove #'phscroll-on-post-command
+                 #'org-phscroll--around-post-command-in-header-line-mode)
   ;; for indent
   (advice-remove #'org-indent-add-properties
                  #'org-phscroll--indent-add-properties))

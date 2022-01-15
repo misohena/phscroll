@@ -1023,6 +1023,8 @@ Like a recenter-top-bottom."
          ;; ignore phscroll's overlay
          ((overlay-get ov 'phscroll)
           (setcar iter nil))
+         ((overlay-get ov 'phscroll-ignore)
+          (setcar iter nil))
          ;; 'display
          ((setq pvalue (overlay-get ov 'display))
           (setcar iter (phscroll-ovc-create 'display pvalue ov))) ;;reuse a cons cell of overlays list
