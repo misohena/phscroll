@@ -126,25 +126,45 @@
   (when beg
     (org-phscroll-invalidate-table beg)))
 
+;; Support for org-indent
+
+(defun org-phscroll-invalidate-indent (beg end)
+  (message "invalidate %s %s" beg end)
+  (dolist (area (phscroll-enum-area beg end))
+    (phscroll-area-remove-updated-range beg end area)
+    ;;(phscroll-area-clear-updated-ranges area)
+    ))
+
+(defun org-phscroll--indent-add-properties (beg end &optional delay)
+  (org-phscroll-invalidate-indent beg end))
+
 ;; Hook global functions
 
 (defun org-phscroll-activate ()
   (interactive)
   (advice-add #'org-fontify-meta-lines-and-blocks
               :around #'org-phscroll--fontify-meta-lines-and-blocks)
+  ;; for table shrink/expand
   (advice-add #'org-table--shrink-columns
               :after #'org-phscroll--table-shrink-columns)
   (advice-add #'org-table-expand
-              :after #'org-phscroll--table-expand))
+              :after #'org-phscroll--table-expand)
+  ;; for indent
+  (advice-add #'org-indent-add-properties
+              :after #'org-phscroll--indent-add-properties))
 
 (defun org-phscroll-deactivate ()
   (interactive)
   (advice-remove #'org-fontify-meta-lines-and-blocks
                  #'org-phscroll--fontify-meta-lines-and-blocks)
+  ;; for table shrink/expand
   (advice-remove #'org-table--shrink-columns
                  #'org-phscroll--table-shrink-columns)
   (advice-remove #'org-table-expand
-                 #'org-phscroll--table-expand))
+                 #'org-phscroll--table-expand)
+  ;; for indent
+  (advice-remove #'org-indent-add-properties
+                 #'org-phscroll--indent-add-properties))
 
 
 (with-eval-after-load "org"
