@@ -37,8 +37,8 @@
 ;; - [X] 複数ウィンドウの挙動、特に左右に分割した場合で左右のサイズが異なる場合はどうしようもない。最小幅を使うしか？　何もしない方が良い？ →area毎に幅を持って変化をチェックする。
 
 (defvar-local phscroll-truncate-lines nil)
-(defvar phscroll-margin-right 4)
-
+(defvar phscroll-margin-right 1)
+(defvar phscroll-use-fringe t)
 
 (define-minor-mode phscroll-mode
 
@@ -922,7 +922,10 @@ Like a recenter-top-bottom."
 
     (when (> scroll-column 0)
       (let ((ov (make-overlay line-begin (+ line-begin left-len))))
-        (overlay-put ov 'display (concat "<" (make-string left-overflow ?\s)))
+        (overlay-put ov 'display (if phscroll-use-fringe
+                                     '(left-fringe left-arrow)
+                                   "<"))
+        (overlay-put ov 'after-string (make-string left-overflow ?\s))
         (overlay-put ov 'phscroll t)
         (overlay-put ov 'phscroll-left t)
         (overlay-put ov 'evaporate t)
@@ -930,7 +933,10 @@ Like a recenter-top-bottom."
 
     (when (< (+ line-begin left-len middle-len) line-end)
       (let ((ov (make-overlay (+ line-begin left-len middle-len) line-end)))
-        (overlay-put ov 'display (concat (make-string middle-shortage ?\s) ">"))
+        (overlay-put ov 'display
+                     (if phscroll-use-fringe
+                         '(right-fringe right-arrow)
+                       (concat (make-string middle-shortage ?\s) ">")))
         (overlay-put ov 'phscroll t)
         (overlay-put ov 'phscroll-right t)
         (overlay-put ov 'evaporate t)
