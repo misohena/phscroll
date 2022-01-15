@@ -104,13 +104,47 @@
               (phscroll-remove-region not-table-beg limit)))))
     ret-val))
 
+;; Support for table column shrink/expand
+
+(defun org-phscroll-invalidate-table (pos)
+  (when-let ((area (phscroll-get-area-at pos)))
+    (phscroll-area-clear-updated-ranges area)
+    ;; @todo necessary?
+    ;; (font-lock-unfontify-region
+    ;;  (phscroll-area-begin area)
+    ;;  (phscroll-area-end area))
+    ))
+
+(defun org-phscroll--table-shrink-columns (columns beg end &rest _)
+  (org-phscroll-invalidate-table beg))
+
+(defun org-phscroll--table-expand (&optional beg end &rest _)
+  (when (and (null beg)
+             (org-at-table-p))
+    (setq beg (org-table-begin)))
+
+  (when beg
+    (org-phscroll-invalidate-table beg)))
+
+;; Hook global functions
+
 (defun org-phscroll-activate ()
   (interactive)
-  (advice-add #'org-fontify-meta-lines-and-blocks :around #'org-phscroll--fontify-meta-lines-and-blocks))
+  (advice-add #'org-fontify-meta-lines-and-blocks
+              :around #'org-phscroll--fontify-meta-lines-and-blocks)
+  (advice-add #'org-table--shrink-columns
+              :after #'org-phscroll--table-shrink-columns)
+  (advice-add #'org-table-expand
+              :after #'org-phscroll--table-expand))
 
 (defun org-phscroll-deactivate ()
   (interactive)
-  (advice-remove #'org-fontify-meta-lines-and-blocks #'org-phscroll--fontify-meta-lines-and-blocks))
+  (advice-remove #'org-fontify-meta-lines-and-blocks
+                 #'org-phscroll--fontify-meta-lines-and-blocks)
+  (advice-remove #'org-table--shrink-columns
+                 #'org-phscroll--table-shrink-columns)
+  (advice-remove #'org-table-expand
+                 #'org-phscroll--table-expand))
 
 
 (with-eval-after-load "org"
