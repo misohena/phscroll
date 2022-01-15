@@ -126,6 +126,11 @@
   (when beg
     (org-phscroll-invalidate-table beg)))
 
+;; Support for org-table-overlay-coordinates
+
+(defun org-phscroll--table-toggle-coordinate-overlays (&rest _)
+  (org-phscroll-invalidate-table (point)))
+
 ;; Support for org-indent
 
 (defun org-phscroll-invalidate-indent (beg end)
@@ -149,6 +154,9 @@
               :after #'org-phscroll--table-shrink-columns)
   (advice-add #'org-table-expand
               :after #'org-phscroll--table-expand)
+  ;; for org-table-overlay-coordinates
+  (advice-add #'org-table-toggle-coordinate-overlays
+              :after #'org-phscroll--table-toggle-coordinate-overlays)
   ;; for indent
   (advice-add #'org-indent-add-properties
               :after #'org-phscroll--indent-add-properties))
@@ -162,6 +170,9 @@
                  #'org-phscroll--table-shrink-columns)
   (advice-remove #'org-table-expand
                  #'org-phscroll--table-expand)
+  ;; for org-table-overlay-coordinates
+  (advice-remove #'org-table-toggle-coordinate-overlays
+                 #'org-phscroll--table-toggle-coordinate-overlays)
   ;; for indent
   (advice-remove #'org-indent-add-properties
                  #'org-phscroll--indent-add-properties))

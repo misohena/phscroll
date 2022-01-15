@@ -835,7 +835,18 @@ Like a recenter-top-bottom."
      (point))))
 
 (defun phscroll-window-width (pos window)
-  (- (window-width window) phscroll-margin-right (length (get-text-property pos 'wrap-prefix))))
+  (-
+   (window-width window)
+   phscroll-margin-right
+   ;; Count wrap-prefix width.
+   ;; org-indent uses this.
+   (length (get-text-property pos 'wrap-prefix))
+   ;; Count before-string width at the beginning of the line.
+   ;; org-table-overlay-coordinates uses this.
+   (let ((bol (phscroll-line-begin pos)))
+     (cl-loop for ov in (overlays-at bol)
+              sum (length (and (equal (overlay-start ov) bol)
+                               (overlay-get ov 'before-string)))))))
 
 
 ;;
