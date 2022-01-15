@@ -160,7 +160,8 @@
               (let ((overlays (overlays-at pos t)))
                 (while (and overlays (null next-pos))
                   (let ((ov (car overlays)))
-                    (unless (overlay-get ov 'phscroll)
+                    (unless (or (overlay-get ov 'phscroll)
+                                (overlay-get ov 'phscroll-ignore))
                       (cond
                        ;; Overlay's display
                        ((setq pvalue (overlay-get ov 'display))
@@ -186,12 +187,12 @@
                          (integerp (caddr pvalue)))
                     (push (make-string (caddr pvalue) (char-after pos)) visible-strs)))
                   (setq next-pos
-                        (next-single-char-property-change pos 'display)))
+                        (next-single-property-change pos 'display nil eol)))
                  ;; Text's invisible
                  ((and (setq pvalue (get-text-property pos 'invisible))
                        (invisible-p pvalue))
                   (setq next-pos
-                        (next-single-char-property-change pos 'invisible)))
+                        (next-single-property-change pos 'invisible nil eol)))
                  ;; Character
                  (t
                   (push (char-to-string (char-after pos)) visible-strs)
@@ -222,6 +223,7 @@
             (org-table-header-set-header))
           (when org-table-header-overlay
             (overlay-put org-table-header-overlay 'phscroll-ignore t)
+            (overlay-put org-table-header-overlay 'priority 20)
             (let ((win-start (overlay-start org-table-header-overlay)))
               (move-overlay org-table-header-overlay
                             (phscroll-line-begin win-start)
