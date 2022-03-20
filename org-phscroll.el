@@ -33,11 +33,9 @@
 (define-minor-mode org-phscroll-mode
   "Apply phscroll to org-table."
   :init-value t
-  (progn
-    (message "body %s" org-phscroll-mode)
-    (if org-phscroll-mode
-        (font-lock-flush)
-      (phscroll-delete-all))))
+  (if org-phscroll-mode
+      (font-lock-flush)
+    (phscroll-delete-all)))
 
 (defun org-phscroll--fontify-meta-lines-and-blocks (old-func limit)
   (let* ((start (point))
