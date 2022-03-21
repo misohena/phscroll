@@ -113,10 +113,10 @@
     ;;  (phscroll-area-end area))
     ))
 
-(defun org-phscroll--table-shrink-columns (columns beg end &rest _)
+(defun org-phscroll--table-shrink-columns (_columns beg _end &rest _)
   (org-phscroll-invalidate-table beg))
 
-(defun org-phscroll--table-expand (&optional beg end &rest _)
+(defun org-phscroll--table-expand (&optional beg _end &rest _)
   (when (and (null beg)
              (org-at-table-p))
     (setq beg (org-table-begin)))
@@ -238,7 +238,7 @@
     ;;(phscroll-area-clear-updated-ranges area)
     ))
 
-(defun org-phscroll--indent-add-properties (beg end &optional delay)
+(defun org-phscroll--indent-add-properties (beg end &optional _delay)
   (org-phscroll-invalidate-indent beg end))
 
 ;;;; Hook global functions
