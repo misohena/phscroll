@@ -197,7 +197,7 @@
                   (setq next-pos (1+ pos)))))
               (setq pos next-pos)))
 
-          (let* ((win-width (phscroll-window-width beg nil))
+          (let* ((win-width (phscroll-window-width-at beg nil))
                  (scroll-column (phscroll-get-scroll-column area))
                  (visible-str (apply #'concat (nreverse visible-strs)))
                  (result (truncate-string-to-width

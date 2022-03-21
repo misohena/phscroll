@@ -381,13 +381,13 @@ Return a new area that is the second half of the divided area."
 (defun phscroll-scroll-left (&optional arg area)
   (interactive "P")
   (phscroll-add-scroll-column
-   (if arg (prefix-numeric-value arg) (- (window-width) 2 phscroll-margin-right 4))
+   (if arg (prefix-numeric-value arg) (- (phscroll-window-width-at (point) nil) 2 4))
    area))
 
 (defun phscroll-scroll-right (&optional arg area)
   (interactive "P")
   (phscroll-add-scroll-column
-   (- (if arg (prefix-numeric-value arg) (- (window-width) 2 phscroll-margin-right 4)))
+   (- (if arg (prefix-numeric-value arg) (- (phscroll-window-width-at (point) nil) 2 4)))
    area))
 
 (defun phscroll-column (pos)
@@ -400,7 +400,7 @@ Return a new area that is the second half of the divided area."
     (if area
         (let ((scroll-column (phscroll-get-scroll-column area))
               (pos-column (phscroll-column pos))
-              (window-width (phscroll-window-width pos nil)))
+              (window-width (phscroll-window-width-at pos nil)))
           (cond
            ((< pos-column scroll-column)
             (phscroll-set-scroll-column pos-column area))
@@ -412,9 +412,9 @@ Return a new area that is the second half of the divided area."
     (if area
         (let ((scroll-column (phscroll-get-scroll-column area))
               (pos-column (phscroll-column pos))
-              (window-width (phscroll-window-width pos nil))
+              (window-width (phscroll-window-width-at pos nil))
               (step (if (= hscroll-step 0)
-                        (/ (1+ (phscroll-window-width pos nil)) 2)
+                        (/ (1+ (phscroll-window-width-at pos nil)) 2)
                       hscroll-step)))
           (cond
            ((< pos-column (+ scroll-column hscroll-margin))
@@ -432,8 +432,8 @@ Return a new area that is the second half of the divided area."
          (- pos-column
             (if arg
                 (let ((n (prefix-numeric-value arg)))
-                  (if (>= n 0) n (+ (phscroll-window-width pos nil) n)))
-              (/ (phscroll-window-width pos nil) 2)))
+                  (if (>= n 0) n (+ (phscroll-window-width-at pos nil) n)))
+              (/ (phscroll-window-width-at pos nil) 2)))
          area))))
 
 (defvar phscroll-recenter-last-op nil)
@@ -461,7 +461,7 @@ Like a recenter-top-bottom."
                     (cdr (member phscroll-recenter-last-op
                                  phscroll-recenter-positions)))
                 phscroll-recenter-positions)))
-    (let* ((win-width (phscroll-window-width (point) nil))
+    (let* ((win-width (phscroll-window-width-at (point) nil))
            (this-scroll-margin
             (min (max 0 hscroll-margin)
                  (truncate (/ win-width 4.0)))))
@@ -724,7 +724,7 @@ Like a recenter-top-bottom."
   (setcar (nthcdr 4 area) width))
 
 (defun phscroll-area-window-width-changed-p (area window)
-  (let ((new-width (window-width window))) ;;;@todo find minimum width of (phscroll-window-width line-pos window) ?
+  (let ((new-width (phscroll-window-width window))) ;;;@todo find minimum width of (phscroll-window-width-at line-pos window) ?
     (when (not (= new-width (phscroll-area-get-window-width area)))
       (phscroll-area-set-window-width area new-width)
       t)))
@@ -834,10 +834,9 @@ Like a recenter-top-bottom."
      (forward-line (window-body-height window))
      (point))))
 
-(defun phscroll-window-width (pos window)
+(defun phscroll-window-width-at (pos window)
   (-
-   (window-width window)
-   phscroll-margin-right
+   (phscroll-window-width window)
    ;; Count wrap-prefix width.
    ;; org-indent uses this.
    (length (get-text-property pos 'wrap-prefix))
@@ -847,6 +846,19 @@ Like a recenter-top-bottom."
      (cl-loop for ov in (overlays-at bol)
               sum (length (and (equal (overlay-start ov) bol)
                                (overlay-get ov 'before-string)))))))
+
+(defun phscroll-window-width (&optional window)
+  (max
+   0
+   (-
+    (window-body-width window)
+    phscroll-margin-right
+    ;; line numbers
+    (ceiling
+     (if window
+         (with-selected-window window
+           (line-number-display-width 'columns))
+       (line-number-display-width 'columns))))))
 
 
 ;;
@@ -913,7 +925,7 @@ Like a recenter-top-bottom."
   ;; | left(9) | middle(14)   | right  |  <part(limit)
   ;; |ABCDEFGHI|JKLMNOPQRSTUVW|XYZ01234|
   ;; |あいうえおかきくけこ
-  (let* ((window-width (phscroll-window-width (point) window))
+  (let* ((window-width (phscroll-window-width-at (point) window))
          ;; current line
          (line-str (phscroll-current-line-string))
          (line-begin (line-beginning-position))
