@@ -28,6 +28,7 @@
 
 ;;; Code:
 
+(require 'org)
 (require 'phscroll)
 
 (define-minor-mode org-phscroll-mode
@@ -263,8 +264,9 @@
   (advice-add #'phscroll-on-post-command
               :around #'org-phscroll--around-post-command-in-header-line-mode)
   ;; for indent
-  (advice-add #'org-indent-add-properties
-              :after #'org-phscroll--indent-add-properties))
+  (with-no-warnings ;;Some one not needs to (require 'org-indent)
+    (advice-add #'org-indent-add-properties
+                :after #'org-phscroll--indent-add-properties)))
 
 (defun org-phscroll-deactivate ()
   (interactive)
@@ -286,8 +288,9 @@
   (advice-remove #'phscroll-on-post-command
                  #'org-phscroll--around-post-command-in-header-line-mode)
   ;; for indent
-  (advice-remove #'org-indent-add-properties
-                 #'org-phscroll--indent-add-properties))
+  (with-no-warnings ;;Some one not needs to (require 'org-indent)
+    (advice-remove #'org-indent-add-properties
+                   #'org-phscroll--indent-add-properties)))
 
 
 (with-eval-after-load "org"
