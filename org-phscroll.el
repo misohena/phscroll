@@ -244,6 +244,7 @@
 
 ;;;; Hook global functions
 
+;;;###autoload
 (defun org-phscroll-activate ()
   (interactive)
   (advice-add #'org-fontify-meta-lines-and-blocks
@@ -268,6 +269,7 @@
     (advice-add #'org-indent-add-properties
                 :after #'org-phscroll--indent-add-properties)))
 
+;;;###autoload
 (defun org-phscroll-deactivate ()
   (interactive)
   (advice-remove #'org-fontify-meta-lines-and-blocks
