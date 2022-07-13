@@ -855,10 +855,11 @@ Like a recenter-top-bottom."
     phscroll-margin-right
     ;; line numbers
     (ceiling
-     (if window
-         (with-selected-window window
-           (line-number-display-width 'columns))
-       (line-number-display-width 'columns))))))
+     (save-excursion ;;なぜかpointが変わることがある。redisplay中だから？
+       (if window
+           (with-selected-window window
+             (line-number-display-width 'columns))
+         (line-number-display-width 'columns)))))))
 
 
 ;;
