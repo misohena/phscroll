@@ -55,52 +55,53 @@
     ;;(message "fontify start=%s limit=%s point=%s line-end=%s" start limit (point) (line-end-position));;debug
 
     (when org-phscroll-mode
-      (save-excursion
-        (save-restriction
-          (widen)
+      (save-match-data
+        (save-excursion
+          (save-restriction
+            (widen)
 
-          (goto-char start)
-          (beginning-of-line)
-          (setq start (point))
+            (goto-char start)
+            (beginning-of-line)
+            (setq start (point))
 
-          (while (progn
-                   (setq not-table-beg (point))
-                   (and (< (point) limit)
-                        (re-search-forward table-re limit t)))
+            (while (progn
+                     (setq not-table-beg (point))
+                     (and (< (point) limit)
+                          (re-search-forward table-re limit t)))
+              ;; not table
+              (let ((not-table-end (line-beginning-position)))
+                (if (< not-table-beg not-table-end)
+                    (phscroll-remove-region not-table-beg not-table-end)))
+
+              ;; table
+              (let ((table-beg (line-beginning-position))
+                    (table-end (if (re-search-forward not-table-re limit t)
+                                   (progn
+                                     (beginning-of-line) ;; next not-table-beg
+                                     (point))
+                                 (goto-char limit) ;; end of fontify
+                                 (point))))
+                ;; exclude comment, blocks
+                (if (text-property-any table-beg table-end 'face 'org-table)
+                    (progn
+                      ;; include previous line if previous line is in area
+                      (if (and (= start table-beg)
+                               (phscroll-enum-area (phscroll-line-begin (1- start))
+                                                   (phscroll-line-end (1- start))))
+                          (setq table-beg (phscroll-line-begin (1- start))))
+                      ;; include next line if next line is in area
+                      (if (phscroll-enum-area (phscroll-line-begin table-end)
+                                              (phscroll-line-end table-end))
+                          (setq table-end (min (point-max)
+                                               (1+ (phscroll-line-end table-end)))))
+                      ;; cover single area
+                      (phscroll-cover-region table-beg table-end))
+                  ;; not table
+                  (phscroll-remove-region table-beg table-end))))
+
             ;; not table
-            (let ((not-table-end (line-beginning-position)))
-              (if (< not-table-beg not-table-end)
-                  (phscroll-remove-region not-table-beg not-table-end)))
-
-            ;; table
-            (let ((table-beg (line-beginning-position))
-                  (table-end (if (re-search-forward not-table-re limit t)
-                                 (progn
-                                   (beginning-of-line) ;; next not-table-beg
-                                   (point))
-                               (goto-char limit) ;; end of fontify
-                               (point))))
-              ;; exclude comment, blocks
-              (if (text-property-any table-beg table-end 'face 'org-table)
-                  (progn
-                    ;; include previous line if previous line is in area
-                    (if (and (= start table-beg)
-                             (phscroll-enum-area (phscroll-line-begin (1- start))
-                                                 (phscroll-line-end (1- start))))
-                        (setq table-beg (phscroll-line-begin (1- start))))
-                    ;; include next line if next line is in area
-                    (if (phscroll-enum-area (phscroll-line-begin table-end)
-                                            (phscroll-line-end table-end))
-                        (setq table-end (min (point-max)
-                                             (1+ (phscroll-line-end table-end)))))
-                    ;; cover single area
-                    (phscroll-cover-region table-beg table-end))
-                ;; not table
-                (phscroll-remove-region table-beg table-end))))
-
-          ;; not table
-          (if (< not-table-beg limit)
-              (phscroll-remove-region not-table-beg limit)))))
+            (if (< not-table-beg limit)
+                (phscroll-remove-region not-table-beg limit))))))
     ret-val))
 
 ;;;; Support for table column shrink/expand
