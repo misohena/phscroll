@@ -915,7 +915,9 @@ Like a recenter-top-bottom."
           (remove-overlays line-begin (1+ line-end) 'phscroll-left t) ;;include line-break
           (remove-overlays line-begin (1+ line-end) 'phscroll-right t) ;;include line-break
           (phscroll-update-current-line-display scroll-column window))
-        (when (> (forward-line) 0)
+        ;; goto next line
+        (if (< line-end (point-max))
+            (goto-char (1+ line-end))
           (message "Unable to reach UPDATE-END in phscroll-update-area-lines-display")
           (setq update-end (point))) ;;forced termination
         ))))
