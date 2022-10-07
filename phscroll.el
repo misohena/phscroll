@@ -1085,7 +1085,10 @@ Like a recenter-top-bottom."
                    (phscroll-display-property-width (phscroll-ovc-pvalue ovc))
                    (phscroll-ovc-end ovc)))
         ('invisible (cons
-                     (phscroll-invisible-property-width (phscroll-ovc-pvalue ovc))
+                     (phscroll-invisible-property-width
+                      (phscroll-ovc-pvalue ovc)
+                      (phscroll-ovc-beg ovc)
+                      (phscroll-ovc-end ovc))
                      (phscroll-ovc-end ovc)))
         (_ (cons 1 (1+ pos)))))
 
@@ -1097,7 +1100,7 @@ Like a recenter-top-bottom."
      ;; invisible text property
      ((setq invisible (get-text-property pos 'invisible))
       (cons
-       (phscroll-invisible-property-width invisible)
+       (phscroll-invisible-property-width invisible pos (1+ pos))
        (1+ pos)))
      ;; normal character
      (t
@@ -1126,10 +1129,21 @@ Like a recenter-top-bottom."
    ;; unknown
    (t 0)))
 
-(defun phscroll-invisible-property-width (_invisible)
+(defun phscroll-invisible-property-width (invisible beg end)
   ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Invisible-Text.html
-  ;;@todo support buffer-invisibility-spec ?
-  0)
+  ;;@todo Detect changes in buffer-invisibility-spec.
+  (pcase (invisible-p invisible) ;; Consider buffer-invisibility-spec.
+    ('nil (string-width (buffer-substring-no-properties beg end)))
+    ('t 0)
+    (_
+     (if (and (>= beg (point-min)) (invisible-p (1- beg)))
+         ;; Not first position in invisible region.
+         0
+       ;; Calculate the width of the current ellipsis string.
+       (string-width
+        (apply #'string (seq-map #'glyph-char
+                                 (or (display-table-slot buffer-display-table 4)
+                                     [?. ?. ?.]))))))))
 
 ;; Text Width Calculation
 
