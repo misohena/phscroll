@@ -1119,14 +1119,27 @@ Like a recenter-top-bottom."
    ((listp display)
     (cond
      ((eq (car display) 'space)
-      (let* ((props (cdr display))
-             (width (plist-get props :width))
-             (relative-width (plist-get props :relative-width)))
+      (let* ((props (cdr display)))
         (+
-         (if (integerp width) width 0)
-         (if (integerp relative-width) relative-width 0))))
+         (phscroll-resolve-space-pixel-spec-chars (plist-get props :width))
+         (let ((factor (plist-get props :relative-width)))
+           (if (numberp factor) (ceiling factor) 0))))) ;;@todo (* factor (char-width <first char>))
      (t 0)))
    ;; unknown
+   (t 0)))
+
+(defun phscroll-resolve-space-pixel-spec-chars (spec)
+  (cond
+   ((null spec) 0)
+   ((integerp spec) spec)
+   ((floatp spec) (ceiling spec))
+   ((symbolp spec)
+    (phscroll-resolve-space-pixel-spec-chars (ignore-errors (symbol-value spec))))
+   ((and (consp spec) (null (cdr spec)))
+    (ceiling
+     (/
+      (phscroll-resolve-space-pixel-spec-chars (car spec))
+      (default-font-width))))
    (t 0)))
 
 (defun phscroll-invisible-property-width (invisible beg end)
