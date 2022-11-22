@@ -31,7 +31,8 @@ The following elisp enables horizontal scrolling in table parts of org-mode docu
 
 #+begin_src emacs-lisp
 (setq org-startup-truncated nil)
-(load "org-phscroll.el")
+(with-eval-after-load "org"
+  (require 'org-phscroll))
 #+end_src
 
 Tips:
