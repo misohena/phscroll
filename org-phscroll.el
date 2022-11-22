@@ -38,51 +38,47 @@
       (font-lock-flush)
     (phscroll-delete-all)))
 
-(defun org-phscroll--fontify-meta-lines-and-blocks (old-func limit)
-  (let* ((start (point))
-         ;; call original function
-         (ret-val (funcall old-func limit))
-         ;; ("|" or "+-[+-]") ... not whitespace
-         (table-re "^[ \t]*\\(\\(|\\|\\+-[-+]\\).*\\S-\\)")
-         ;; [^|+]
-         ;; +([^-] or $)
-         ;; +-([^+-] or $)
-         ;; +-[+-] whitespace...$
-         ;; | whitespace...$
-         (not-table-re "^[ \t]*\\([^|+ \t]\\|\\+\\([^-]\\|$\\|-\\([^-+]\\|$\\|[-+]\\s-*$\\)\\)\\||\\s-*$\\)")
-         not-table-beg
-         (phscroll-fontify-range (cons start limit)))
-    ;;(message "fontify start=%s limit=%s point=%s line-end=%s" start limit (point) (line-end-position));;debug
+(defun org-phscroll--fontify (limit)
+  (when org-phscroll-mode
+    (save-match-data
+      (save-excursion
+        (save-restriction
+          (widen)
 
-    (when org-phscroll-mode
-      (save-match-data
-        (save-excursion
-          (save-restriction
-            (widen)
-
-            (goto-char start)
-            (beginning-of-line)
-            (setq start (point))
+          (beginning-of-line)
+          (let* ((start (point))
+                 ;; ("|" or "+-[+-]") ... not whitespace
+                 (table-re "^[ \t]*\\(\\(|\\|\\+-[-+]\\).*\\S-\\)")
+                 ;; [^|+]
+                 ;; +([^-] or $)
+                 ;; +-([^+-] or $)
+                 ;; +-[+-] whitespace...$
+                 ;; | whitespace...$
+                 (not-table-re "^[ \t]*\\([^|+ \t]\\|\\+\\([^-]\\|$\\|-\\([^-+]\\|$\\|[-+]\\s-*$\\)\\)\\||\\s-*$\\)")
+                 (phscroll-fontify-range (cons start limit))
+                 not-table-beg)
+            ;;(message "org-phscroll--fontify start=%s limit=%s line-end=%s" start limit (line-end-position));;debug
 
             (while (progn
                      (setq not-table-beg (point))
                      (and (< (point) limit)
                           (re-search-forward table-re limit t)))
-              ;; not table
-              (let ((not-table-end (line-beginning-position)))
-                (if (< not-table-beg not-table-end)
-                    (phscroll-remove-region not-table-beg not-table-end)))
 
-              ;; table
-              (let ((table-beg (line-beginning-position))
-                    (table-end (if (re-search-forward not-table-re limit t)
-                                   (progn
-                                     (beginning-of-line) ;; next not-table-beg
-                                     (point))
-                                 (goto-char limit) ;; end of fontify
-                                 (point))))
+              (let* ((not-table-end (line-beginning-position))
+                     (table-beg not-table-end)
+                     (table-end (if (re-search-forward not-table-re limit t)
+                                    (progn
+                                      (beginning-of-line) ;; next not-table-beg
+                                      (point))
+                                  (goto-char limit)))) ;; end of fontify
+                ;; not table
+                (if (< not-table-beg not-table-end)
+                    (phscroll-remove-region not-table-beg not-table-end))
+
+                ;; table?
                 ;; exclude comment, blocks
                 (if (text-property-any table-beg table-end 'face 'org-table)
+                    ;; table
                     (progn
                       ;; include previous line if previous line is in area
                       (if (and (= start table-beg)
@@ -102,7 +98,15 @@
             ;; not table
             (if (< not-table-beg limit)
                 (phscroll-remove-region not-table-beg limit))))))
-    ret-val))
+    nil))
+
+(defun org-phscroll--font-lock-set-keywords ()
+  ;; See: org-set-font-lock-defaults
+  (nconc
+   org-font-lock-extra-keywords
+   (list
+    '(org-phscroll--fontify))))
+
 
 ;;;; Support for table column shrink/expand
 
@@ -248,8 +252,8 @@
 ;;;###autoload
 (defun org-phscroll-activate ()
   (interactive)
-  (advice-add #'org-fontify-meta-lines-and-blocks
-              :around #'org-phscroll--fontify-meta-lines-and-blocks)
+  (add-hook 'org-font-lock-set-keywords-hook
+            #'org-phscroll--font-lock-set-keywords)
   ;; for table shrink/expand
   (advice-add #'org-table--shrink-columns
               :after #'org-phscroll--table-shrink-columns)
@@ -273,8 +277,8 @@
 ;;;###autoload
 (defun org-phscroll-deactivate ()
   (interactive)
-  (advice-remove #'org-fontify-meta-lines-and-blocks
-                 #'org-phscroll--fontify-meta-lines-and-blocks)
+  (remove-hook 'org-font-lock-set-keywords-hook
+               #'org-phscroll--font-lock-set-keywords)
   ;; for table shrink/expand
   (advice-remove #'org-table--shrink-columns
                  #'org-phscroll--table-shrink-columns)
