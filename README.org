@@ -38,3 +38,11 @@ The following elisp enables horizontal scrolling in table parts of org-mode docu
 Tips:
 - To turn off the effect of phscroll, use M-x org-phscroll-mode.
 - To scroll the current position of the screen to the left edge, press C-S-l twice.
+
+* Known Issues
+
+- Incorrect display when viewing the same area from multiple windows with different widths
+- Incorrect display when used with various text properties and overlays.
+- Performance degradation
+
+phscroll forcibly realizes partial horizontal scrolling, which is not possible originally. It's interesting that it's still somewhat usable, but ideally Emacs should have a text property that controls line wrapping.
