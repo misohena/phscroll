@@ -40,9 +40,14 @@
 (defvar phscroll-margin-right 1)
 (defvar phscroll-use-fringe t)
 
+
+
+;;;; Basic Commands
+
+
 (define-minor-mode phscroll-mode
 
-  "Partial horizontal scroll mode"
+  "Partial horizontal scroll mode."
   :global nil
   (cond
    (phscroll-mode
@@ -60,7 +65,13 @@
     )))
 
 (defun phscroll-region (beg end)
-  "Make a partial horizontal scroll area."
+  "Make a partial horizontal scrolling area.
+
+The area to be created has a range from the line containing BEG
+to the line containing END (however, if END is the beginning of
+the line, that line is not included).
+
+Any existing overlapping areas are destroyed."
   (interactive "r")
   (setq beg (phscroll-line-begin beg))
   (setq end (if (save-excursion (goto-char end) (bolp))
@@ -90,21 +101,26 @@
       area)))
 
 (defun phscroll-delete-at (&optional pos)
-  "Delete area."
+  "Delete the area at POS."
   (interactive "d")
   (phscroll-area-destroy (phscroll-get-area-at pos)))
 
 (defun phscroll-delete-all ()
+  "Destroy all areas in the current buffer."
   (interactive)
   (cl-loop for area in (phscroll-enum-area)
            do (phscroll-area-destroy area)))
 
 (defun phscroll-update-at (&optional pos)
+  "Redisplay the area at POS."
   (interactive "d")
   (phscroll-update-area-display (phscroll-get-area-at pos) t))
 
 (defun phscroll-merge-region (beg end &optional no-update)
-  "Merge all areas that overlap the region BEG ... END."
+  "Merge all areas that overlap the region BEG..END.
+
+If NO-UPDATE is non-nil, this function will not call
+`phscroll-update-area-display'."
   (interactive "r")
   (let* ((areas (sort (phscroll-enum-area beg end)
                       (lambda (a1 a2)
@@ -119,7 +135,7 @@
     result))
 
 (defun phscroll-cover-region (beg end)
-  "Cover the region BEG ... END with a single phscroll area."
+  "Cover the region BEG..END with a single phscroll area."
   (interactive "r")
 
   (if-let ((area (phscroll-merge-region beg end t)));;no-update=t
@@ -133,7 +149,7 @@
     (phscroll-region beg end)))
 
 (defun phscroll-remove-region (beg end)
-  "Remove phscroll areas from the region BEG ... END.
+  "Remove phscroll areas from the region BEG..END.
 
 Areas that overlap the region will be deleted, moved, or splitted."
   (interactive "r")
@@ -165,14 +181,20 @@ Areas that overlap the region will be deleted, moved, or splitted."
         )))))
 
 
-;;
-;; Area object
-;;
+
+;;;; Area object
+
 
 (defun phscroll-area-create (beg end &optional evaporate
                                  init-scroll-column
                                  init-updated-ranges
                                  init-window-width)
+  "Create a new area object covering BEG to END.
+
+EVAPORATE is the same as the overlay property of the same name.
+
+INIT-SCROLL-COLUMN, INIT-UPDATED-RANGES, INIT-WINDOW-WIDTH are
+for special cases."
   ;;(message "create %s %s" beg end)
   (let* ((ov (make-overlay beg end))
          (area (list
@@ -192,6 +214,7 @@ Areas that overlap the region will be deleted, moved, or splitted."
     area))
 
 (defun phscroll-area-destroy (area)
+  "Destroy AREA, an area object."
   (when area
     (let ((beg (phscroll-area-begin area))
           (end (phscroll-area-end area))
@@ -202,7 +225,11 @@ Areas that overlap the region will be deleted, moved, or splitted."
 
 
 (defun phscroll-area-move (area beg end &optional update)
-  "Set the endpoints of AREA to BEG and END."
+  "Set the endpoints of AREA to BEG and END.
+
+Call `phscroll-update-area-display' if UPDATE is non-nil.
+
+Return AREA."
   (when (and area (<= beg end))
     (let* ((ov (phscroll-area-overlay area))
            (old-beg (overlay-start ov))
@@ -241,7 +268,11 @@ Areas that overlap the region will be deleted, moved, or splitted."
   area)
 
 (defun phscroll-area-merge (to-area from-area &optional update)
-  "Merge FROM-AREA to TO-AREA."
+  "Merge FROM-AREA to TO-AREA.
+
+Call `phscroll-update-area-display' if UPDATE is non-nil.
+
+Return TO-AREA."
   (when (and to-area from-area)
     (let* ((to-ov (phscroll-area-overlay to-area))
            (to-beg (overlay-start to-ov))
@@ -540,8 +571,7 @@ Like a recenter-top-bottom."
   (cl-loop for area in (phscroll-areas-in-window window)
            do (phscroll-update-area-display area redraw window)))
 
-;;
-;; Updated Range Management
+;;;; Updated Range Management
 ;;
 ;; updated-ranges:
 ;; ((-1 . -1) (beg0 . end0) (beg1 . end1) ... (begN . endN))
@@ -730,9 +760,9 @@ Like a recenter-top-bottom."
       t)))
 
 
-;;
-;; Event Handlers
-;;
+
+;;;; Event Handlers
+
 
 ;; (defun phscroll-on-window-size-changed (&optional _frame)
 ;;   ;;(message "window-size-changed width beg=%s end=%s width=%s" (window-start) (window-end) (window-width))
@@ -812,10 +842,8 @@ Like a recenter-top-bottom."
 
 
 
+;;;; Window Utilities
 
-;;
-;; Window Utilities
-;;
 
 (defvar phscroll-use-window-end-update nil) ;;;@todo
 
@@ -862,12 +890,12 @@ Like a recenter-top-bottom."
          (line-number-display-width 'columns)))))))
 
 
-;;
-;; Area Display
-;;
+
+;;;; Area Display
+
 
 (defvar-local phscroll-fontify-range nil
-  "Fontifying range (BEG . END)")
+  "Fontifying range (BEG . END).")
 
 (defun phscroll-update-area-display (area &optional redraw window)
   (when (and area (not phscroll-truncate-lines))
@@ -975,9 +1003,9 @@ Like a recenter-top-bottom."
     ))
 
 
-;;
-;; Text Utilities
-;;
+
+;;;; Text Utilities
+
 
 (defun phscroll-line-begin (&optional pos)
   (if pos
