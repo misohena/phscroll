@@ -415,7 +415,9 @@ Return a new area that is the second half of the divided area."
     phscroll-scroll-left
     phscroll-scroll-right
     phscroll-recenter
-    phscroll-recenter-left-right))
+    phscroll-recenter-left-right
+    phscroll-mwheel-scroll-left
+    phscroll-mwheel-scroll-right))
 
 (defun phscroll-get-scroll-column (&optional area)
   (nth 1 (or area (phscroll-get-current-area))))
@@ -459,24 +461,29 @@ Return a new area that is the second half of the divided area."
 (defun phscroll-scroll-left-right-internal (delta area)
   (when phscroll-scroll-left-right-reverse-direction
     (setq delta (- delta)))
+  (when (null area)
+    (setq area (phscroll-get-current-area)))
 
-  (when phscroll-scroll-left-right-move-point
-    (cond
-     ((> delta 0)
-      (goto-char
-       (+ (phscroll-line-begin)
-          (phscroll-string-length
-           (car (phscroll-substring-over-width
-                 (phscroll-current-line-string)
-                 (+ (phscroll-column (point))
-                    delta)))))))
-     ((< delta 0)
-      (goto-char
-       (+ (phscroll-line-begin)
-          (phscroll-string-length
-           (car (phscroll-substring-over-width
-                 (phscroll-current-line-string)
-                 (max 0 (+ (phscroll-column (point)) delta))))))))))
+  (when area
+    (when (and phscroll-scroll-left-right-move-point
+               (<= (phscroll-area-begin area) (point))
+               (< (point) (phscroll-area-end area)))
+      (cond
+       ((> delta 0)
+        (goto-char
+         (+ (phscroll-line-begin)
+            (phscroll-string-length
+             (car (phscroll-substring-over-width
+                   (phscroll-current-line-string)
+                   (+ (phscroll-column (point))
+                      delta)))))))
+       ((< delta 0)
+        (goto-char
+         (+ (phscroll-line-begin)
+            (phscroll-string-length
+             (car (phscroll-substring-over-width
+                   (phscroll-current-line-string)
+                   (max 0 (+ (phscroll-column (point)) delta)))))))))))
 
   (phscroll-add-scroll-column delta area))
 
@@ -887,14 +894,53 @@ Like a recenter-top-bottom."
     ;; remove update-ranges and redraw
     (phscroll-update-all-area)))
 
+;; Mouse Wheel
+
+(defcustom phscroll-mwheel-scroll-amount-horizontal nil
+  "Amount to scroll phscroll areas horizontally."
+  :type '(choice (const :tag "Use `mouse-wheel-scroll-amount-horizontal'" nil)
+                 (integer 4))
+  :group 'phscroll)
+
+(defun phscroll-mwheel-scroll-left (event)
+  (interactive "e")
+  (phscroll-mwheel-scroll-left-right-internal event 1))
+
+(defun phscroll-mwheel-scroll-right (event)
+  (interactive "e")
+  (phscroll-mwheel-scroll-left-right-internal event -1))
+
+(defun phscroll-mwheel-scroll-left-right-internal (event dir)
+  (interactive "e")
+  (when-let ((point (posn-point (event-start event)))
+             (window (posn-window (event-start event))))
+    (with-current-buffer (window-buffer window)
+      (when-let ((area (phscroll-get-area-at point)))
+        (phscroll-scroll-right
+         (* dir
+            (or phscroll-mwheel-scroll-amount-horizontal
+                (and (boundp 'mouse-wheel-scroll-amount-horizontal)
+                     mouse-wheel-scroll-amount-horizontal)
+                4))
+         area)))))
+
+;; Keymap
 
 (defvar phscroll-keymap
-      (let ((map (make-sparse-keymap)))
-        (define-key map "\C-x<" 'phscroll-scroll-left)
-        (define-key map "\C-x>" 'phscroll-scroll-right)
-        (define-key map (kbd "C-S-l") 'phscroll-recenter-left-right)
-        (define-key map (kbd "C-l") 'phscroll-recenter-top-bottom)
-        map))
+  (let ((map (make-sparse-keymap)))
+    (define-key map "\C-x<" 'phscroll-scroll-left)
+    (define-key map "\C-x>" 'phscroll-scroll-right)
+    (define-key map (kbd "C-S-l") 'phscroll-recenter-left-right)
+    (define-key map (kbd "C-l") 'phscroll-recenter-top-bottom)
+    ;; Shift + Mouse Wheel
+    (when (boundp 'mouse-wheel-down-event)
+      (define-key map (vector (list 'shift mouse-wheel-down-event))
+        'phscroll-mwheel-scroll-left))
+    (when (boundp 'mouse-wheel-up-event)
+      (define-key map (vector (list 'shift mouse-wheel-up-event))
+        'phscroll-mwheel-scroll-right))
+    map))
+
 (defun phscroll-area-set-keymap (area)
   (when area
     (overlay-put (phscroll-area-overlay area) 'keymap phscroll-keymap)))
