@@ -45,7 +45,7 @@
         (save-restriction
           (widen)
 
-          (beginning-of-line)
+          (goto-char (phscroll-line-begin))
           (let* ((start (point))
                  ;; ("|" or "+-[+-]") ... not whitespace
                  (table-re "^[ \t]*\\(\\(|\\|\\+-[-+]\\).*\\S-\\)")
@@ -57,20 +57,17 @@
                  (not-table-re "^[ \t]*\\([^|+ \t]\\|\\+\\([^-]\\|$\\|-\\([^-+]\\|$\\|[-+]\\s-*$\\)\\)\\||\\s-*$\\)")
                  (phscroll-fontify-range (cons start limit))
                  not-table-beg)
-            ;;(message "org-phscroll--fontify start=%s limit=%s line-end=%s" start limit (line-end-position));;debug
+            ;;(message "org-phscroll--fontify start=%s limit=%s line-end=%s" start limit (phscroll-line-end));;debug
 
             (while (progn
                      (setq not-table-beg (point))
                      (and (< (point) limit)
                           (re-search-forward table-re limit t)))
 
-              (let* ((not-table-end (line-beginning-position))
+              (let* ((not-table-end (phscroll-line-begin))
                      (table-beg not-table-end)
                      (table-end (if (re-search-forward not-table-re limit t)
-                                    (progn
-                                      (goto-char (match-beginning 0))
-                                      (beginning-of-line) ;; next not-table-beg
-                                      (point))
+                                    (goto-char (phscroll-line-begin (match-beginning 0))) ;; beginning of not table
                                   (goto-char limit)))) ;; end of fontify
                 ;; not table
                 (if (< not-table-beg not-table-end)

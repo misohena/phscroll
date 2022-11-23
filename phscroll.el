@@ -464,7 +464,7 @@ Return a new area that is the second half of the divided area."
     (cond
      ((> delta 0)
       (goto-char
-       (+ (line-beginning-position)
+       (+ (phscroll-line-begin)
           (phscroll-string-length
            (car (phscroll-substring-over-width
                  (phscroll-current-line-string)
@@ -472,7 +472,7 @@ Return a new area that is the second half of the divided area."
                     delta)))))))
      ((< delta 0)
       (goto-char
-       (+ (line-beginning-position)
+       (+ (phscroll-line-begin)
           (phscroll-string-length
            (car (phscroll-substring-over-width
                  (phscroll-current-line-string)
@@ -993,11 +993,10 @@ Like a recenter-top-bottom."
 
 (defun phscroll-update-area-lines-display (area scroll-column update-begin update-end window)
   (save-excursion
-    (goto-char update-begin)
-    (beginning-of-line)
+    (goto-char (phscroll-line-begin update-begin))
     (while (< (point) update-end)
-      (let ((line-begin (line-beginning-position))
-            (line-end (line-end-position)))
+      (let ((line-begin (phscroll-line-begin))
+            (line-end (phscroll-line-end)))
         (when (phscroll-area-needs-update-range line-begin line-end area)
           ;;(message "update line %d" (point))
           (remove-overlays line-begin (1+ line-end) 'phscroll-left t) ;;include line-break
@@ -1018,8 +1017,8 @@ Like a recenter-top-bottom."
   (let* ((window-width (phscroll-window-width-at (point) window))
          ;; current line
          (line-str (phscroll-current-line-string))
-         (line-begin (line-beginning-position))
-         (line-end (line-end-position))
+         (line-begin (phscroll-line-begin))
+         (line-end (phscroll-line-end))
          (line-overlays (phscroll-get-overlay-cache line-begin line-end))
          ;; left invisible
          (left-limit-width scroll-column)
@@ -1067,14 +1066,16 @@ Like a recenter-top-bottom."
 
 
 (defun phscroll-line-begin (&optional pos)
-  (if pos
-      (save-excursion (goto-char pos) (line-beginning-position))
-    (line-beginning-position)))
+  (let ((inhibit-field-text-motion t))
+    (if pos
+        (save-excursion (goto-char pos) (line-beginning-position))
+      (line-beginning-position))))
 
 (defun phscroll-line-end (&optional pos)
-  (if pos
-      (save-excursion (goto-char pos) (line-end-position))
-    (line-end-position)))
+  (let ((inhibit-field-text-motion t))
+    (if pos
+        (save-excursion (goto-char pos) (line-end-position))
+      (line-end-position))))
 
 ;; Text Operation Like a String
 
@@ -1084,7 +1085,7 @@ Like a recenter-top-bottom."
   )
 
 (defun phscroll-current-line-string ()
-  (phscroll-buffer-substring (line-beginning-position) (line-end-position)))
+  (phscroll-buffer-substring (phscroll-line-begin) (phscroll-line-end)))
 
 (defun phscroll-string-length (str)
   ;;ignore-overlay: (length str)
