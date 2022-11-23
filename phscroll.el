@@ -38,14 +38,31 @@
 ;; - [X] 既存の水平スクロール操作に対応?(scroll-left, scroll-right)
 ;; - [X] 複数ウィンドウの挙動、特に左右に分割した場合で左右のサイズが異なる場合はどうしようもない。最小幅を使うしか？　何もしない方が良い？ →area毎に幅を持って変化をチェックする。
 
-(defvar-local phscroll-truncate-lines nil)
-(defvar phscroll-margin-right 1)
-(defvar phscroll-use-fringe t)
+;;;; Customization
+
+(defgroup phscroll nil
+  "Creates horizontally scrolling areas in a buffer."
+  :prefix "phscroll-"
+  :group 'convenience)
+
+(defcustom phscroll-use-fringe t
+  "Specifies how to indicate the possibility of scrolling left or right.
+Use fringe when non-nil.
+If it is nil, it is indicated by the < and > characters."
+  :type 'boolean
+  :group 'phscroll)
+
+(defvar phscroll-margin-right-additional 0) ;;for stability
+
+(defun phscroll-margin-right ()
+  (+ phscroll-margin-right-additional
+     (if phscroll-use-fringe 1 2)))
 
 
 
 ;;;; Basic Commands
 
+(defvar-local phscroll-truncate-lines nil) ;; to detect truncate-lines change
 
 (define-minor-mode phscroll-mode
 
@@ -53,7 +70,7 @@
   :global nil
   (cond
    (phscroll-mode
-    (setq phscroll-truncate-lines truncate-lines)
+    (setq-local phscroll-truncate-lines truncate-lines)
     (add-hook 'post-command-hook #'phscroll-on-post-command nil t)
     (add-hook 'window-scroll-functions #'phscroll-on-window-scroll nil t)
     ;;(add-hook 'window-size-change-functions #'phscroll-on-window-size-changed nil t)
@@ -882,7 +899,7 @@ Like a recenter-top-bottom."
    0
    (-
     (window-body-width window)
-    phscroll-margin-right
+    (phscroll-margin-right)
     ;; line numbers
     (ceiling
      (save-excursion ;;なぜかpointが変わることがある。redisplay中だから？
