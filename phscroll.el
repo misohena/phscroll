@@ -80,8 +80,8 @@ Any existing overlapping areas are destroyed."
 
   (when (< beg end)
     ;; turn on phscroll-mode
-    (if (not phscroll-mode)
-        (phscroll-mode))
+    (unless phscroll-mode
+      (phscroll-mode))
 
     ;; create overlay and area object
     (let* ((overlap-areas (phscroll-enum-area beg end))
@@ -130,8 +130,8 @@ If NO-UPDATE is non-nil, this function will not call
     (while areas
       (phscroll-area-merge result (car areas))
       (setq areas (cdr areas)))
-    (if (and result (not no-update))
-        (phscroll-update-area-display result))
+    (when (and result (not no-update))
+      (phscroll-update-area-display result))
     result))
 
 (defun phscroll-cover-region (beg end)
@@ -141,10 +141,10 @@ If NO-UPDATE is non-nil, this function will not call
   (if-let ((area (phscroll-merge-region beg end t)));;no-update=t
       (let ((area-beg (phscroll-area-begin area))
             (area-end (phscroll-area-end area)))
-        (if (or (< beg area-beg) (< area-end end))
-            (phscroll-area-move area
-                                (min beg area-beg)
-                                (max end area-end)))
+        (when (or (< beg area-beg) (< area-end end))
+          (phscroll-area-move area
+                              (min beg area-beg)
+                              (max end area-end)))
         (phscroll-update-area-display area))
     (phscroll-region beg end)))
 
@@ -208,8 +208,8 @@ for special cases."
     (overlay-put ov 'phscroll t)
     (overlay-put ov 'phscroll-area area)
     (overlay-put ov 'modification-hooks (list #'phscroll-on-modified))
-    (if evaporate
-        (overlay-put ov 'evaporate t))
+    (when evaporate
+      (overlay-put ov 'evaporate t))
     (phscroll-area-set-keymap area)
     area))
 
@@ -255,16 +255,16 @@ Return AREA."
             (remove-overlays end old-end 'phscroll-left t)
             (remove-overlays end old-end 'phscroll-right t)))
         ;; Shift relative positions in updated ranges list
-        (if (/= old-beg beg)
-            (phscroll-area-shift-updated-ranges-after old-beg (- old-beg beg)
-                                                      area))
+        (when (/= old-beg beg)
+          (phscroll-area-shift-updated-ranges-after old-beg (- old-beg beg)
+                                                    area))
 
         ;; Move overlay
         (move-overlay ov beg end)
 
         ;; Update new area range
-        (if update
-            (phscroll-update-area-display area)))))
+        (when update
+          (phscroll-update-area-display area)))))
   area)
 
 (defun phscroll-area-merge (to-area from-area &optional update)
@@ -331,8 +331,8 @@ Return TO-AREA."
 
         ;; Delete from-ov
         (delete-overlay from-ov)))
-    (if update
-        (phscroll-update-area-display to-area)))
+    (when update
+      (phscroll-update-area-display to-area)))
   to-area)
 
 (defun phscroll-area-split (area pos)
@@ -393,17 +393,17 @@ Return a new area that is the second half of the divided area."
 
 (defun phscroll-set-scroll-column (pos &optional area)
   (interactive "nColumn: ")
-  (if (null area)
-      (setq area (phscroll-get-current-area)))
-  (if (< pos 0)
-      (setq pos 0))
+  (when (null area)
+    (setq area (phscroll-get-current-area)))
+  (when (< pos 0)
+    (setq pos 0))
   (when (and area (not (= (phscroll-get-scroll-column area) pos)))
     (setcar (nthcdr 1 area) pos)
     (phscroll-update-area-display area t)))
 
 (defun phscroll-add-scroll-column (delta &optional area)
-  (if (null area)
-      (setq area (phscroll-get-current-area)))
+  (when (null area)
+    (setq area (phscroll-get-current-area)))
   (when area
     (phscroll-set-scroll-column
      (+ (phscroll-get-scroll-column area) delta)
@@ -428,44 +428,44 @@ Return a new area that is the second half of the divided area."
 
 (defun phscroll-show-point (pos)
   (let ((area (phscroll-get-area-at pos)))
-    (if area
-        (let ((scroll-column (phscroll-get-scroll-column area))
-              (pos-column (phscroll-column pos))
-              (window-width (phscroll-window-width-at pos nil)))
-          (cond
-           ((< pos-column scroll-column)
-            (phscroll-set-scroll-column pos-column area))
-           ((> pos-column (+ scroll-column window-width))
-            (phscroll-set-scroll-column (- pos-column window-width) area)))))))
+    (when area
+      (let ((scroll-column (phscroll-get-scroll-column area))
+            (pos-column (phscroll-column pos))
+            (window-width (phscroll-window-width-at pos nil)))
+        (cond
+         ((< pos-column scroll-column)
+          (phscroll-set-scroll-column pos-column area))
+         ((> pos-column (+ scroll-column window-width))
+          (phscroll-set-scroll-column (- pos-column window-width) area)))))))
 
 (defun phscroll-scroll-point (pos)
   (let ((area (phscroll-get-area-at pos)))
-    (if area
-        (let ((scroll-column (phscroll-get-scroll-column area))
-              (pos-column (phscroll-column pos))
-              (window-width (phscroll-window-width-at pos nil))
-              (step (if (= hscroll-step 0)
-                        (/ (1+ (phscroll-window-width-at pos nil)) 2)
-                      hscroll-step)))
-          (cond
-           ((< pos-column (+ scroll-column hscroll-margin))
-            (phscroll-set-scroll-column (max 0 (- pos-column hscroll-margin step)) area))
-           ((> pos-column (+ scroll-column (- window-width hscroll-margin)))
-            (phscroll-set-scroll-column (+ (- pos-column window-width) hscroll-margin step) area)))))))
+    (when area
+      (let ((scroll-column (phscroll-get-scroll-column area))
+            (pos-column (phscroll-column pos))
+            (window-width (phscroll-window-width-at pos nil))
+            (step (if (= hscroll-step 0)
+                      (/ (1+ (phscroll-window-width-at pos nil)) 2)
+                    hscroll-step)))
+        (cond
+         ((< pos-column (+ scroll-column hscroll-margin))
+          (phscroll-set-scroll-column (max 0 (- pos-column hscroll-margin step)) area))
+         ((> pos-column (+ scroll-column (- window-width hscroll-margin)))
+          (phscroll-set-scroll-column (+ (- pos-column window-width) hscroll-margin step) area)))))))
 
 (defun phscroll-recenter (&optional arg)
   (interactive "P")
   (let* ((pos (point))
          (pos-column (phscroll-column pos))
          (area (phscroll-get-area-at pos)))
-    (if area
-        (phscroll-set-scroll-column
-         (- pos-column
-            (if arg
-                (let ((n (prefix-numeric-value arg)))
-                  (if (>= n 0) n (+ (phscroll-window-width-at pos nil) n)))
-              (/ (phscroll-window-width-at pos nil) 2)))
-         area))))
+    (when area
+      (phscroll-set-scroll-column
+       (- pos-column
+          (if arg
+              (let ((n (prefix-numeric-value arg)))
+                (if (>= n 0) n (+ (phscroll-window-width-at pos nil) n)))
+            (/ (phscroll-window-width-at pos nil) 2)))
+       area))))
 
 (defvar phscroll-recenter-last-op nil)
 (defcustom phscroll-recenter-positions '(center left right)
@@ -595,8 +595,8 @@ Like a recenter-top-bottom."
   (when (and (< beg end) area)
     (let ((area-begin (phscroll-area-begin area))
           (area-end (phscroll-area-end area)))
-      (if (< beg area-begin) (setq beg area-begin))
-      (if (> end area-end) (setq end area-end))
+      (when (< beg area-begin) (setq beg area-begin))
+      (when (> end area-end) (setq end area-end))
       (when (< beg end)
 
         ;; convert to relative position
@@ -636,8 +636,8 @@ Like a recenter-top-bottom."
   (when (and (< beg end) area)
     (let ((area-begin (phscroll-area-begin area))
           (area-end (phscroll-area-end area)))
-      (if (< beg area-begin) (setq beg area-begin))
-      (if (> end area-end) (setq end area-end))
+      (when (< beg area-begin) (setq beg area-begin))
+      (when (> end area-end) (setq end area-end))
       (when (< beg end)
 
         ;; convert to relative position
@@ -703,8 +703,8 @@ Like a recenter-top-bottom."
   (when (and (< beg end) area)
     (let ((area-begin (phscroll-area-begin area))
           (area-end (phscroll-area-end area)))
-      (if (< beg area-begin) (setq beg area-begin))
-      (if (> end area-end) (setq end area-end))
+      (when (< beg area-begin) (setq beg area-begin))
+      (when (> end area-end) (setq end area-end))
       (when (< beg end)
 
         ;; convert to relative position
@@ -729,8 +729,8 @@ Like a recenter-top-bottom."
       (while (and r (< (cdar r) pos))
         (setq r (cdr r)))
       (when r
-        (if (<= pos (caar r)) (setcar (car r) (+ (caar r) delta)))
-        (if (<= pos (cdar r)) (setcdr (car r) (+ (cdar r) delta)))
+        (when (<= pos (caar r)) (setcar (car r) (+ (caar r) delta)))
+        (when (<= pos (cdar r)) (setcdr (car r) (+ (cdar r) delta)))
         (setq r (cdr r))
         (while r
           (setcar (car r) (+ (caar r) delta))
@@ -818,13 +818,13 @@ Like a recenter-top-bottom."
 (defun phscroll-check-truncate-lines ()
   (when (not (equal truncate-lines phscroll-truncate-lines))
     (setq phscroll-truncate-lines truncate-lines)
-    (if phscroll-truncate-lines
-        ;; remove left, right overlays
-        (cl-loop for area in (phscroll-enum-area)
-                 do (let ((beg (phscroll-area-begin area))
-                          (end (phscroll-area-end area)))
-                      (remove-overlays beg end 'phscroll-left t)
-                      (remove-overlays beg end 'phscroll-right t))))
+    (when phscroll-truncate-lines
+      ;; remove left, right overlays
+      (cl-loop for area in (phscroll-enum-area)
+               do (let ((beg (phscroll-area-begin area))
+                        (end (phscroll-area-end area)))
+                    (remove-overlays beg end 'phscroll-left t)
+                    (remove-overlays beg end 'phscroll-right t))))
     ;; remove update-ranges and redraw
     (phscroll-update-all-area)))
 
@@ -837,8 +837,8 @@ Like a recenter-top-bottom."
         (define-key map (kbd "C-l") 'phscroll-recenter-top-bottom)
         map))
 (defun phscroll-area-set-keymap (area)
-  (if area
-      (overlay-put (phscroll-area-overlay area) 'keymap phscroll-keymap)))
+  (when area
+    (overlay-put (phscroll-area-overlay area) 'keymap phscroll-keymap)))
 
 
 
@@ -1097,9 +1097,9 @@ Like a recenter-top-bottom."
   (while (and cache (<= (phscroll-ovc-end (car cache)) pos))
     (setq cache (cdr cache)))
 
-  (if (and cache
-           (<= (phscroll-ovc-beg (car cache)) pos)) ;; ovc.beg <= pos
-      (car cache)))
+  (when (and cache
+             (<= (phscroll-ovc-beg (car cache)) pos)) ;; ovc.beg <= pos
+    (car cache)))
 
 ;; Character Width Calculation
 
