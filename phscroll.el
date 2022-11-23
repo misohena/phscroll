@@ -58,6 +58,16 @@ If it is nil, it is indicated by the < and > characters."
   (+ phscroll-margin-right-additional
      (if phscroll-use-fringe 1 2)))
 
+(defcustom phscroll-scroll-left-right-move-point t
+  "If non-nil, move point with left/right scroll commands."
+  :type 'boolean
+  :group 'phscroll)
+
+(defcustom phscroll-scroll-left-right-reverse-direction nil
+  "If non-nil, reverse direction of left/right scroll command."
+  :type 'boolean
+  :group 'phscroll)
+
 
 
 ;;;; Basic Commands
@@ -430,15 +440,45 @@ Return a new area that is the second half of the divided area."
 
 (defun phscroll-scroll-left (&optional arg area)
   (interactive "P")
-  (phscroll-add-scroll-column
-   (if arg (prefix-numeric-value arg) (- (phscroll-window-width-at (point) nil) 2 4))
+  (phscroll-scroll-left-right-internal
+   (if arg (prefix-numeric-value arg) (phscroll-scroll-left-right-unit))
    area))
 
 (defun phscroll-scroll-right (&optional arg area)
   (interactive "P")
-  (phscroll-add-scroll-column
-   (- (if arg (prefix-numeric-value arg) (- (phscroll-window-width-at (point) nil) 2 4)))
+  (phscroll-scroll-left-right-internal
+   (- (if arg (prefix-numeric-value arg) (phscroll-scroll-left-right-unit)))
    area))
+
+(defun phscroll-scroll-left-right-unit ()
+  (max 1
+       (- (phscroll-window-width-at (point) nil)
+          (phscroll-margin-right)
+          4)))
+
+(defun phscroll-scroll-left-right-internal (delta area)
+  (when phscroll-scroll-left-right-reverse-direction
+    (setq delta (- delta)))
+
+  (when phscroll-scroll-left-right-move-point
+    (cond
+     ((> delta 0)
+      (goto-char
+       (+ (line-beginning-position)
+          (phscroll-string-length
+           (car (phscroll-substring-over-width
+                 (phscroll-current-line-string)
+                 (+ (phscroll-column (point))
+                    delta)))))))
+     ((< delta 0)
+      (goto-char
+       (+ (line-beginning-position)
+          (phscroll-string-length
+           (car (phscroll-substring-over-width
+                 (phscroll-current-line-string)
+                 (max 0 (+ (phscroll-column (point)) delta))))))))))
+
+  (phscroll-add-scroll-column delta area))
 
 (defun phscroll-column (pos)
   (phscroll-string-width
