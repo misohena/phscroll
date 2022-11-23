@@ -28,6 +28,8 @@
 
 ;;; Code:
 
+(require 'cl-lib)
+(require 'subr-x)
 
 ;; TODO:
 ;; - [X] truncate-lines によって動作を変える。truncate-linesのときは何もしない。切り替えを検出できるか
