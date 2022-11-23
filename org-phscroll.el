@@ -68,6 +68,7 @@
                      (table-beg not-table-end)
                      (table-end (if (re-search-forward not-table-re limit t)
                                     (progn
+                                      (goto-char (match-beginning 0))
                                       (beginning-of-line) ;; next not-table-beg
                                       (point))
                                   (goto-char limit)))) ;; end of fontify
