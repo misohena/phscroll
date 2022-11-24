@@ -33,10 +33,18 @@
 
 (define-minor-mode org-phscroll-mode
   "Apply phscroll to org-table."
-  :init-value t
+  :type 'boolean
+  :init-value nil
+  :group 'org-phscroll
   (if org-phscroll-mode
-      (font-lock-flush)
-    (phscroll-delete-all)))
+      (progn
+        ;; Do not update on modification-hooks. Update on font-lock.
+        (setq-local phscroll-update-area-display-on-modified nil)
+        (phscroll-mode 1)
+        (font-lock-flush))
+    (setq-local phscroll-update-area-display-on-modified t)
+    (phscroll-delete-all) ;;@todo Keep manually added areas (Identify areas created by org-phscroll, and delete(remove-region) only areas created by org-phscroll when fontify)
+    (phscroll-mode -1)))
 
 (defun org-phscroll--fontify (limit)
   (when org-phscroll-mode
@@ -45,6 +53,13 @@
         (save-restriction
           (widen)
 
+          ;; Invalidate areas that overlaps range to fontify.
+          ;; Because the text width may have changed due to the
+          ;; fontify of the previous keyword (for example, the
+          ;; org-link value of the invisible property).
+          (phscroll-invalidate-region (point) limit)
+
+          ;; Create/Delete/Move phscroll areas.
           (goto-char (phscroll-line-begin))
           (let* ((start (point))
                  ;; ("|" or "+-[+-]") ... not whitespace
@@ -250,6 +265,8 @@
 ;;;###autoload
 (defun org-phscroll-activate ()
   (interactive)
+  (add-hook 'org-mode-hook
+            #'org-phscroll-mode)
   (add-hook 'org-font-lock-set-keywords-hook
             #'org-phscroll--font-lock-set-keywords)
   ;; for table shrink/expand
@@ -275,6 +292,8 @@
 ;;;###autoload
 (defun org-phscroll-deactivate ()
   (interactive)
+  (remove-hook 'org-mode-hook
+               #'org-phscroll-mode)
   (remove-hook 'org-font-lock-set-keywords-hook
                #'org-phscroll--font-lock-set-keywords)
   ;; for table shrink/expand

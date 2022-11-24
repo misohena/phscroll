@@ -629,6 +629,10 @@ Like a recenter-top-bottom."
     (cl-loop for area in (phscroll-enum-area)
              do (phscroll-area-clear-updated-ranges area))))
 
+(defun phscroll-invalidate-region (beg end)
+  (dolist (area (phscroll-enum-area beg end))
+    (phscroll-area-remove-updated-range beg end area)))
+
 (defun phscroll-areas-in-window (&optional window)
   (phscroll-enum-area
    (min (phscroll-window-start window))
@@ -856,6 +860,8 @@ Like a recenter-top-bottom."
   (phscroll-check-truncate-lines)
   (phscroll-update-areas-in-window nil window))
 
+(defvar-local phscroll-update-area-display-on-modified t)
+
 (defun phscroll-on-modified (ov after beg end &optional before-length)
   ;;(message "modified %s %s %s %s" after beg end before-length)
   (when after
@@ -879,7 +885,8 @@ Like a recenter-top-bottom."
            (t
             (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end end) area)))
           ;;;@todo do pre-redisplay only?
-          (phscroll-update-area-display area))))))
+          (when phscroll-update-area-display-on-modified
+            (phscroll-update-area-display area)))))))
 
 
 (defun phscroll-check-truncate-lines ()
