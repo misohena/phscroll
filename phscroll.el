@@ -174,7 +174,8 @@ If NO-UPDATE is non-nil, this function will not call
           (phscroll-area-move area
                               (min beg area-beg)
                               (max end area-end)))
-        (phscroll-update-area-display area))
+        (phscroll-update-area-display area)
+        area)
     (phscroll-region beg end)))
 
 (defun phscroll-remove-region (beg end)
