@@ -1378,20 +1378,23 @@ Like a recenter-top-bottom."
           (/ (+ width (frame-char-width) -1) (frame-char-width)))))
 
 (defun phscroll-find-max-pos-fits-in-width-px (beg end width &optional window)
-  (let ((lower beg)
-        (upper (1+ end)) ;; Possible answers include END
-        (prefix-width (car (window-text-pixel-size nil beg beg 1000000)))
-        lower-width)
+  (let ((buffer-invisibility-spec
+         (seq-remove (lambda (x) (eq (car-safe x) 'outline))
+                     buffer-invisibility-spec))) ;; Temporarily disable folding!
+    (let ((lower beg)
+          (upper (1+ end)) ;; Possible answers include END
+          (prefix-width (car (window-text-pixel-size nil beg beg 1000000)))
+          lower-width)
 
-    (while (> (- upper lower) 1)
-      (let* ((pos (/ (+ lower upper) 2)) ;;floor (Never test UPPER)
-             (pos-width (- (car (window-text-pixel-size window beg pos 1000000))
-                           prefix-width)))
-        (if (<= pos-width width)
-            (setq lower pos
-                  lower-width pos-width)
-          (setq upper pos))))
-    (cons lower lower-width)))
+      (while (> (- upper lower) 1)
+        (let* ((pos (/ (+ lower upper) 2)) ;;floor (Never test UPPER)
+               (pos-width (- (car (window-text-pixel-size window beg pos 1000000))
+                             prefix-width)))
+          (if (<= pos-width width)
+              (setq lower pos
+                    lower-width pos-width)
+            (setq upper pos))))
+      (cons lower lower-width))))
 
 
 
