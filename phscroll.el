@@ -1378,23 +1378,31 @@ Like a recenter-top-bottom."
           (/ (+ width (frame-char-width) -1) (frame-char-width)))))
 
 (defun phscroll-find-max-pos-fits-in-width-px (beg end width &optional window)
-  (let ((buffer-invisibility-spec
-         (seq-remove (lambda (x) (eq (car-safe x) 'outline))
-                     buffer-invisibility-spec))) ;; Temporarily disable folding!
-    (let ((lower beg)
-          (upper (1+ end)) ;; Possible answers include END
-          (prefix-width (car (window-text-pixel-size nil beg beg 1000000)))
-          lower-width)
+  ;; Temporarily unveil folded text
+  (let ((overlays (cl-loop for ov in (overlays-in beg end)
+                           for invis = (overlay-get ov 'invisible)
+                           when (or (eq invis 'outline) (assq 'outline invis))
+                           collect (progn
+                                     (overlay-put ov 'invisible nil)
+                                     (cons ov invis)))))
+    (unwind-protect
+        (let ((lower beg)
+              (upper (1+ end)) ;; Possible answers include END
+              (prefix-width (car (window-text-pixel-size nil beg beg 1000000)))
+              lower-width)
 
-      (while (> (- upper lower) 1)
-        (let* ((pos (/ (+ lower upper) 2)) ;;floor (Never test UPPER)
-               (pos-width (- (car (window-text-pixel-size window beg pos 1000000))
-                             prefix-width)))
-          (if (<= pos-width width)
-              (setq lower pos
-                    lower-width pos-width)
-            (setq upper pos))))
-      (cons lower lower-width))))
+          (while (> (- upper lower) 1)
+            (let* ((pos (/ (+ lower upper) 2)) ;;floor (Never test UPPER)
+                   (pos-width (- (car (window-text-pixel-size window beg pos 1000000))
+                                 prefix-width)))
+              (if (<= pos-width width)
+                  (setq lower pos
+                        lower-width pos-width)
+                (setq upper pos))))
+          (cons lower (or lower-width 0)))
+      ;; Recover invisible property
+      (dolist (ov-invis overlays)
+        (overlay-put (car ov-invis) 'invisible (cdr ov-invis))))))
 
 
 
