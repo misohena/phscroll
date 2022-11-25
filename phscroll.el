@@ -68,7 +68,10 @@ If it is nil, it is indicated by the < and > characters."
   :type 'boolean
   :group 'phscroll)
 
-
+(defcustom phscroll-calculate-in-pixels nil
+  "Experimental."
+  :type 'boolean
+  :group 'phscroll)
 
 ;;;; Basic Commands
 
@@ -1076,14 +1079,20 @@ Like a recenter-top-bottom."
          (line-overlays (phscroll-get-overlay-cache line-begin line-end))
          ;; left invisible
          (left-limit-width scroll-column)
-         (left-str-width (phscroll-substring-over-width line-str left-limit-width line-overlays))
+         (left-str-width (phscroll-substring-over-width line-str left-limit-width line-overlays)) ;;@todo phscroll-calculate-in-pixels case
          (left-str (car left-str-width))
          (left-width (cdr left-str-width)) ;; 0 ~ left-limit-width + overflow
          (left-overflow (max 0 (- left-width scroll-column))) ;; 0 ~ overflow
          (left-len (phscroll-string-length left-str))
          ;; middle visible
          (middle-limit-width (- window-width left-overflow))
-         (middle-str-width (phscroll-truncate-string-to-width (phscroll-substring line-str left-len) middle-limit-width line-overlays))
+         (middle-str-width
+          (if phscroll-calculate-in-pixels
+              (phscroll-truncate-string-to-width-px
+               (phscroll-substring line-str left-len) middle-limit-width)
+            (phscroll-truncate-string-to-width
+             (phscroll-substring line-str left-len) middle-limit-width
+             line-overlays)))
          (middle-str (car middle-str-width))
          (middle-width (cdr middle-str-width))
          (middle-shortage (- middle-limit-width middle-width))
@@ -1353,6 +1362,36 @@ Like a recenter-top-bottom."
         (setq width (+ width (car width-next)))
         (setq pos (cdr width-next))))
     (cons (cons beg pos) width)))
+
+
+;; Text Width Calculation (In Pixels)
+
+(defun phscroll-truncate-string-to-width-px (str end-column)
+  (let* ((beg (car str))
+         (end (cdr str))
+         (pos-and-width (phscroll-find-max-pos-fits-in-width-px
+                         beg end (* (frame-char-width) end-column)))
+         (pos (car pos-and-width))
+         (width (cdr pos-and-width)))
+
+    (cons (cons beg pos)
+          (/ (+ width (frame-char-width) -1) (frame-char-width)))))
+
+(defun phscroll-find-max-pos-fits-in-width-px (beg end width &optional window)
+  (let ((lower beg)
+        (upper (1+ end)) ;; Possible answers include END
+        (prefix-width (car (window-text-pixel-size nil beg beg 1000000)))
+        lower-width)
+
+    (while (> (- upper lower) 1)
+      (let* ((pos (/ (+ lower upper) 2)) ;;floor (Never test UPPER)
+             (pos-width (- (car (window-text-pixel-size window beg pos 1000000))
+                           prefix-width)))
+        (if (<= pos-width width)
+            (setq lower pos
+                  lower-width pos-width)
+          (setq upper pos))))
+    (cons lower lower-width)))
 
 
 
