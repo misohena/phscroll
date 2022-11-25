@@ -31,8 +31,6 @@
 (require 'org)
 (require 'phscroll)
 
-(defvar-local org-phscroll-font-lock-keywords (list '(org-phscroll--fontify)))
-
 (define-minor-mode org-phscroll-mode
   "Apply phscroll to org-table."
   :type 'boolean
@@ -40,15 +38,11 @@
   :group 'org-phscroll
   (if org-phscroll-mode
       (progn
-        ;; Turn on
         ;; Do not update on modification-hooks. Update on font-lock.
         (setq-local phscroll-update-area-display-on-modified nil)
-        (font-lock-add-keywords nil org-phscroll-font-lock-keywords)
         (phscroll-mode 1)
         (font-lock-flush))
-    ;; Turn off
     (setq-local phscroll-update-area-display-on-modified t)
-    (font-lock-remove-keywords nil org-phscroll-font-lock-keywords)
     (phscroll-delete-all) ;;@todo Keep manually added areas (Identify areas created by org-phscroll, and delete(remove-region) only areas created by org-phscroll when fontify)
     (phscroll-mode -1)))
 
@@ -118,6 +112,13 @@
             (if (< not-table-beg limit)
                 (phscroll-remove-region not-table-beg limit))))))
     nil))
+
+(defun org-phscroll--font-lock-set-keywords ()
+  ;; See: org-set-font-lock-defaults
+  (nconc
+   org-font-lock-extra-keywords
+   (list
+    '(org-phscroll--fontify))))
 
 
 ;;;; Support for table column shrink/expand
@@ -266,6 +267,8 @@
   (interactive)
   (add-hook 'org-mode-hook
             #'org-phscroll-mode)
+  (add-hook 'org-font-lock-set-keywords-hook
+            #'org-phscroll--font-lock-set-keywords)
   ;; for table shrink/expand
   (advice-add #'org-table--shrink-columns
               :after #'org-phscroll--table-shrink-columns)
@@ -291,6 +294,8 @@
   (interactive)
   (remove-hook 'org-mode-hook
                #'org-phscroll-mode)
+  (remove-hook 'org-font-lock-set-keywords-hook
+               #'org-phscroll--font-lock-set-keywords)
   ;; for table shrink/expand
   (advice-remove #'org-table--shrink-columns
                  #'org-phscroll--table-shrink-columns)
