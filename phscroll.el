@@ -1050,7 +1050,14 @@ Like a recenter-top-bottom."
 
 (defun phscroll-update-area-lines-display (area scroll-column update-begin update-end window)
   (save-excursion
+    ;; Ensure that the update range is within the point movable range.
+    (when (< update-begin (point-min))
+      (setq update-begin (point-min)))
+    (when (> update-end (point-max))
+      (setq update-end (point-max)))
+
     (goto-char (phscroll-line-begin update-begin))
+
     (while (< (point) update-end)
       (let ((line-begin (phscroll-line-begin))
             (line-end (phscroll-line-end)))
@@ -1058,13 +1065,10 @@ Like a recenter-top-bottom."
           ;;(message "update line %d" (point))
           (remove-overlays line-begin (1+ line-end) 'phscroll-left t) ;;include line-break
           (remove-overlays line-begin (1+ line-end) 'phscroll-right t) ;;include line-break
-          (phscroll-update-current-line-display scroll-column window))
+          (save-excursion
+            (phscroll-update-current-line-display scroll-column window)))
         ;; goto next line
-        (if (< line-end (point-max))
-            (goto-char (1+ line-end))
-          (message "Unable to reach UPDATE-END in phscroll-update-area-lines-display")
-          (setq update-end (point))) ;;forced termination
-        ))))
+        (forward-line)))))
 
 (defun phscroll-update-current-line-display (scroll-column window)
   ;; | line                            |
