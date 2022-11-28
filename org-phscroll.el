@@ -31,6 +31,13 @@
 (require 'org)
 (require 'phscroll)
 
+(defvar org-phscroll-buffer-name-regexp-to-disable
+  '(;; see: org-src-font-lock-fontify-block in org-src.el
+    "\\` *\\*org-src-fontification:.*\\*\\'"
+    ;; see: org-html-fontify-code in ox-html.el
+    "\\` *\\*temp\\*-[0-9]+\\'"))
+
+(defvar-local org-phscroll-disabled nil)
 (defvar-local org-phscroll-font-lock-keywords (list '(org-phscroll--fontify)))
 
 (define-minor-mode org-phscroll-mode
@@ -38,17 +45,29 @@
   :type 'boolean
   :init-value nil
   :group 'org-phscroll
+
   (if org-phscroll-mode
       (progn
-        ;; Do not update on modification-hooks. Update on font-lock.
-        (setq-local phscroll-update-area-display-on-modified nil)
-        (phscroll-mode 1)
-        (font-lock-add-keywords nil org-phscroll-font-lock-keywords t)
-        (font-lock-flush))
-    (font-lock-remove-keywords nil org-phscroll-font-lock-keywords)
-    (setq-local phscroll-update-area-display-on-modified t)
-    (phscroll-delete-all) ;;@todo Keep manually added areas (Identify areas created by org-phscroll, and delete(remove-region) only areas created by org-phscroll when fontify)
-    (phscroll-mode -1)))
+        ;; Do not anything in some buffers.
+        (setq-local org-phscroll-disabled
+                    (not
+                     (null
+                      (seq-some
+                       (lambda (regexp) (string-match-p regexp (buffer-name)))
+                       org-phscroll-buffer-name-regexp-to-disable))))
+        ;; (when org-phscroll-disabled
+        ;;   (message "Disable org-phscroll-mode in %s" (buffer-name)))
+        (unless org-phscroll-disabled
+          ;; Do not update on modification-hooks. Update on font-lock.
+          (setq-local phscroll-update-area-display-on-modified nil)
+          (phscroll-mode 1)
+          (font-lock-add-keywords nil org-phscroll-font-lock-keywords t)
+          (font-lock-flush)))
+    (unless org-phscroll-disabled
+      (font-lock-remove-keywords nil org-phscroll-font-lock-keywords)
+      (setq-local phscroll-update-area-display-on-modified t)
+      (phscroll-delete-all) ;;@todo Keep manually added areas (Identify areas created by org-phscroll, and delete(remove-region) only areas created by org-phscroll when fontify)
+      (phscroll-mode -1))))
 
 (defun org-phscroll--fontify (limit)
   (when org-phscroll-mode
