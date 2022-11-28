@@ -114,7 +114,8 @@
 
                 ;; table?
                 ;; exclude comment, blocks
-                (if (text-property-any table-beg table-end 'face 'org-table)
+                (if (or (text-property-any table-beg table-end 'face 'org-table)
+                        (eq (car-safe (get-text-property table-beg 'face)) 'org-table)) ;; for org-modern (org-table (:overline) (:height 0.1))
                     ;; table
                     (progn
                       ;; include previous line if previous line is in area
