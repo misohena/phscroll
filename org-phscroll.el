@@ -92,7 +92,8 @@
                  ;; +-([^+-] or $)
                  ;; +-[+-] whitespace...$
                  ;; | whitespace...$
-                 (not-table-re "^[ \t]*\\([^|+ \t]\\|\\+\\([^-]\\|$\\|-\\([^-+]\\|$\\|[-+]\\s-*$\\)\\)\\||\\s-*$\\)")
+                 ;; $
+                 (not-table-re "^[ \t]*\\([^|+ \t]\\|\\+\\([^-]\\|$\\|-\\([^-+]\\|$\\|[-+]\\s-*$\\)\\)\\||\\s-*$\\|$\\)")
                  (phscroll-fontify-range (cons start limit))
                  not-table-beg)
             ;;(message "org-phscroll--fontify start=%s limit=%s line-end=%s" start limit (phscroll-line-end));;debug
