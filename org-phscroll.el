@@ -252,7 +252,8 @@
             result))))))
 
 (defun org-phscroll--around-post-command-in-header-line-mode (old-func &rest args)
-  (if org-table-header-line-mode
+  (if (and (boundp 'org-table-header-line-mode) ;; Org 9.4 or later
+           org-table-header-line-mode)
       (progn
         ;; Delete overlay before phscroll process
         (when (overlayp org-table-header-overlay)

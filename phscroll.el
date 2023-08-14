@@ -998,12 +998,14 @@ Like a recenter-top-bottom."
     (window-body-width window)
     (phscroll-margin-right)
     ;; line numbers
-    (ceiling
-     (save-excursion ;;なぜかpointが変わることがある。redisplay中だから？
-       (if window
-           (with-selected-window window
-             (line-number-display-width 'columns))
-         (line-number-display-width 'columns)))))))
+    (if (fboundp 'line-number-display-width) ;;Emacs 26.1 or later
+        (ceiling
+         (save-excursion ;;なぜかpointが変わることがある。redisplay中だから？
+           (if window
+               (with-selected-window window
+                 (line-number-display-width 'columns))
+             (line-number-display-width 'columns))))
+      0))))
 
 
 
