@@ -40,6 +40,7 @@
 (defvar-local org-phscroll-disabled nil)
 (defvar-local org-phscroll-font-lock-keywords (list '(org-phscroll--fontify)))
 
+;;;###autoload
 (define-minor-mode org-phscroll-mode
   "Apply phscroll to org-table."
   :type 'boolean
