@@ -993,17 +993,19 @@ Like a recenter-top-bottom."
 
 (defvar phscroll-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-x<" 'phscroll-scroll-left)
-    (define-key map "\C-x>" 'phscroll-scroll-right)
-    (define-key map (kbd "C-S-l") 'phscroll-recenter-left-right)
-    (define-key map (kbd "C-l") 'phscroll-recenter-top-bottom)
+    (define-key map "\C-x<" #'phscroll-scroll-left)
+    (define-key map "\C-x>" #'phscroll-scroll-right)
+    (define-key map (kbd "C-S-l") #'phscroll-recenter-left-right)
+    (define-key map (kbd "C-l") #'phscroll-recenter-top-bottom)
     ;; Shift + Mouse Wheel
+    (define-key map [(shift wheel-up)] #'phscroll-mwheel-scroll-left)
+    (define-key map [(shift wheel-down)] #'phscroll-mwheel-scroll-right)
     (when (boundp 'mouse-wheel-down-event)
       (define-key map (vector (list 'shift mouse-wheel-down-event))
-        'phscroll-mwheel-scroll-left))
+                  #'phscroll-mwheel-scroll-left))
     (when (boundp 'mouse-wheel-up-event)
       (define-key map (vector (list 'shift mouse-wheel-up-event))
-        'phscroll-mwheel-scroll-right))
+                  'phscroll-mwheel-scroll-right))
     map))
 
 (defun phscroll-area-set-keymap (area)
