@@ -151,7 +151,7 @@
 ;;;; Support for table column shrink/expand
 
 (defun org-phscroll-invalidate-table (pos)
-  (when-let ((area (phscroll-get-area-at pos)))
+  (when-let* ((area (phscroll-get-area-at pos)))
     (phscroll-area-clear-updated-ranges area)
     ;; @todo necessary?
     ;; (font-lock-unfontify-region

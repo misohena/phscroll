@@ -977,10 +977,10 @@ Like a recenter-top-bottom."
 
 (defun phscroll-mwheel-scroll-left-right-internal (event dir)
   (interactive "e")
-  (when-let ((point (posn-point (event-start event)))
-             (window (posn-window (event-start event))))
+  (when-let* ((point (posn-point (event-start event)))
+              (window (posn-window (event-start event))))
     (with-current-buffer (window-buffer window)
-      (when-let ((area (phscroll-get-area-at point)))
+      (when-let* ((area (phscroll-get-area-at point)))
         (phscroll-scroll-right
          (* dir
             (or phscroll-mwheel-scroll-amount-horizontal
