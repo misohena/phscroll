@@ -24,7 +24,9 @@
 
 ;;; Usage:
 
-;;; (load "org-phscroll.el")
+;; (setq org-startup-truncated nil)
+;; (with-eval-after-load "org"
+;;   (require 'org-phscroll))
 
 ;;; Code:
 
@@ -67,7 +69,7 @@
     (unless org-phscroll-disabled
       (font-lock-remove-keywords nil org-phscroll-font-lock-keywords)
       (setq-local phscroll-update-area-display-on-modified t)
-      (phscroll-delete-all) ;;@todo Keep manually added areas (Identify areas created by org-phscroll, and delete(remove-region) only areas created by org-phscroll when fontify)
+      (phscroll-delete-all) ;; TODO: Keep manually added areas (Identify areas created by org-phscroll, and delete(remove-region) only areas created by org-phscroll when fontify)
       (phscroll-mode -1))))
 
 (defun org-phscroll--fontify (limit)
@@ -153,7 +155,7 @@
 (defun org-phscroll-invalidate-table (pos)
   (when-let* ((area (phscroll-get-area-at pos)))
     (phscroll-area-clear-updated-ranges area)
-    ;; @todo necessary?
+    ;; TODO: necessary?
     ;; (font-lock-unfontify-region
     ;;  (phscroll-area-begin area)
     ;;  (phscroll-area-end area))
@@ -192,8 +194,8 @@
       ;; In phscroll area
       (save-excursion
 
-        ;;@todo Is it possible to unify with around phscroll-char-width-next?
-        ;;@todo Support more properties
+        ;; TODO: Is it possible to unify with around phscroll-char-width-next?
+        ;; TODO: Support more properties
         (let ((pos (phscroll-line-begin beg))
               (eol (phscroll-line-end beg))
               visible-strs)

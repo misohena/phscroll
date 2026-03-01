@@ -22,9 +22,11 @@
 
 ;;; Usage:
 
-;;; 1. (require 'phscroll)
-;;; 2. Select region you want to hscroll.
-;;; 3. M-x phscroll-region
+;; 1. (require 'phscroll)
+;; 2. Select region you want to hscroll.
+;; 3. M-x phscroll-region
+
+;; Under `org-mode', use `org-phscroll-mode' instead.
 
 ;;; Code:
 
@@ -125,8 +127,11 @@ loading the library."
 (defvar-local phscroll-truncate-lines nil) ;; to detect truncate-lines change
 
 (define-minor-mode phscroll-mode
+  "Partial horizontal scroll mode.
 
-  "Partial horizontal scroll mode."
+Users do not normally need to enable this mode directly.
+`phscroll-region' enables this mode automatically.
+Under `org-mode', use `org-phscroll-mode' instead."
   :global nil
   (cond
    (phscroll-mode
@@ -262,14 +267,14 @@ Areas that overlap the region will be deleted, moved, or splitted."
 
 
 
-;;;; Area object
+;;;; Area Objects
 
 
 (defun phscroll-area-create (beg end &optional evaporate
                                  init-scroll-column
                                  init-updated-ranges
                                  init-window-width)
-  "Create a new area object covering BEG to END.
+  "Create a new scroll area object covering BEG to END.
 
 EVAPORATE is the same as the overlay property of the same name.
 
@@ -294,7 +299,7 @@ for special cases."
     area))
 
 (defun phscroll-area-destroy (area)
-  "Destroy AREA, an area object."
+  "Destroy AREA, an scroll area object."
   (when area
     (let ((beg (phscroll-area-begin area))
           (end (phscroll-area-end area))
@@ -465,7 +470,7 @@ Return a new area that is the second half of the divided area."
             (phscroll-area-shift-updated-ranges-after pos (- area-beg pos) new-area)
             new-area))))))
 
-;; Area Scroll Position
+;;;;; Area Scroll Position
 
 (defconst phscroll-interactive-scroll-commands
   '(phscroll-set-scroll-column
@@ -477,9 +482,15 @@ Return a new area that is the second half of the divided area."
     phscroll-mwheel-scroll-right))
 
 (defun phscroll-get-scroll-column (&optional area)
+  "Return the horizontal scroll position (in columns) of AREA.
+
+If AREA is nil, use the scroll area containing the current point."
   (nth 1 (or area (phscroll-get-current-area))))
 
 (defun phscroll-set-scroll-column (pos &optional area)
+  "Set the horizontal scroll position (in columns) of AREA to POS.
+
+If AREA is nil, use the scroll area containing the current point."
   (interactive "nColumn: ")
   (when (null area)
     (setq area (phscroll-get-current-area)))
@@ -490,6 +501,9 @@ Return a new area that is the second half of the divided area."
     (phscroll-update-area-display area t)))
 
 (defun phscroll-add-scroll-column (delta &optional area)
+  "Add DELTA to the horizontal scroll position (in columns) of AREA.
+
+If AREA is nil, use the scroll area containing the current point."
   (when (null area)
     (setq area (phscroll-get-current-area)))
   (when area
@@ -498,24 +512,46 @@ Return a new area that is the second half of the divided area."
      area)))
 
 (defun phscroll-scroll-left (&optional arg area)
+  "Scroll AREA left by ARG columns.
+
+If ARG is nil, use the value returned by `phscroll-scroll-left-right-unit'.
+
+If AREA is nil, use the scroll area containing the current point."
   (interactive "P")
   (phscroll-scroll-left-right-internal
    (if arg (prefix-numeric-value arg) (phscroll-scroll-left-right-unit))
    area))
 
 (defun phscroll-scroll-right (&optional arg area)
+  "Scroll AREA right by ARG columns.
+
+If ARG is nil, use the value returned by `phscroll-scroll-left-right-unit'.
+
+If AREA is nil, use the scroll area containing the current point."
   (interactive "P")
   (phscroll-scroll-left-right-internal
    (- (if arg (prefix-numeric-value arg) (phscroll-scroll-left-right-unit)))
    area))
 
 (defun phscroll-scroll-left-right-unit ()
+  "Return the default horizontal scroll amount.
+
+The amount is determined by taking into account the window width and the
+margin to preserve."
   (max 1
        (- (phscroll-window-width-at (point) nil)
           (phscroll-margin-right)
           4)))
 
 (defun phscroll-scroll-left-right-internal (delta area)
+  "Scroll AREA by DELTA columns.
+
+This is the implementation of `phscroll-scroll-left' and
+`phscroll-scroll-right'.
+
+Respects the customization variables
+`phscroll-scroll-left-right-reverse-direction' and
+`phscroll-scroll-left-right-move-point'."
   (when phscroll-scroll-left-right-reverse-direction
     (setq delta (- delta)))
   (when (null area)
@@ -545,11 +581,15 @@ Return a new area that is the second half of the divided area."
   (phscroll-add-scroll-column delta area))
 
 (defun phscroll-column (pos)
+  "Return the horizontal position of POS."
+  ;; TODO: `current-column'との違いは？ `phscroll-ignored-invisibility-specs'の扱いくらい？
   (phscroll-string-width
    (phscroll-buffer-substring
     (phscroll-line-begin pos) pos)))
 
 (defun phscroll-show-point (pos)
+  "If POS is within a scroll area, horizontally scroll the area so that POS
+is visible within the window."
   (let ((area (phscroll-get-area-at pos)))
     (when area
       (let ((scroll-column (phscroll-get-scroll-column area))
@@ -562,6 +602,8 @@ Return a new area that is the second half of the divided area."
           (phscroll-set-scroll-column (- pos-column window-width) area)))))))
 
 (defun phscroll-scroll-point (pos)
+  "If POS is within a scroll area, horizontally scroll the area so that POS
+is visible within the window."
   (let ((area (phscroll-get-area-at pos)))
     (when area
       (let ((scroll-column (phscroll-get-scroll-column area))
@@ -572,11 +614,23 @@ Return a new area that is the second half of the divided area."
                     hscroll-step)))
         (cond
          ((< pos-column (+ scroll-column hscroll-margin))
-          (phscroll-set-scroll-column (max 0 (- pos-column hscroll-margin step)) area))
+          (phscroll-set-scroll-column
+           (max 0 (- pos-column hscroll-margin step)) area))
          ((> pos-column (+ scroll-column (- window-width hscroll-margin)))
-          (phscroll-set-scroll-column (+ (- pos-column window-width) hscroll-margin step) area)))))))
+          (phscroll-set-scroll-column
+           (+ (- pos-column window-width) hscroll-margin step) area)))))))
 
 (defun phscroll-recenter (&optional arg)
+  "If there is a scroll area at the current point, horizontally scroll it
+so that the point is at the position within the window specified by ARG.
+
+If ARG is 0 or a positive integer, scroll so that the point is ARG
+columns from the left edge of the window.
+
+If ARG is a negative integer, scroll so that the point is ARG columns
+from the right edge of the window.
+
+If ARG is nil, scroll so that the point is centered in the window."
   (interactive "P")
   (let* ((pos (point))
          (pos-column (phscroll-column pos))
@@ -603,8 +657,10 @@ Like a recenter-top-bottom."
   :group 'phscroll)
 
 (defun phscroll-recenter-left-right (&optional arg)
+  "Scroll horizontally to place the point at the left, right, or center of
+the window, in the same way as `recenter-top-bottom' works vertically."
   ;; The foloweing code was copied and modified from
-  ;; recenter-top-bottom in window.el
+  ;; `recenter-top-bottom' in window.el
   (interactive "P")
   (cond
    (arg (phscroll-recenter arg))
@@ -631,30 +687,46 @@ Like a recenter-top-bottom."
              (phscroll-recenter (round (* phscroll-recenter-last-op win-width)))))))))
 
 (defun phscroll-recenter-top-bottom (&optional _arg)
+  "Run `recenter-top-bottom' and `phscroll-recenter' together.
+
+The prefix argument ARG is not used."
   (interactive "P")
   (call-interactively #'recenter-top-bottom)
   (phscroll-recenter))
 
 
-;; Area Overlay
+;;;;; Area Overlay
 
 (defun phscroll-area-overlay (&optional area)
+  "Return the overlay object representing the entire scroll area associated
+with AREA.
+
+If AREA is nil, use the scroll area containing the current point."
   (nth 2 (or area (phscroll-get-current-area))))
 
-;; Area Range
+;;;;; Area Range
 
 (defun phscroll-area-begin (&optional area)
+  "Return the beginning position of AREA.
+
+If AREA is nil, use the scroll area containing the current point."
   (overlay-start (phscroll-area-overlay (or area (phscroll-get-current-area)))))
 
 (defun phscroll-area-end (&optional area)
+  "Return the end position of AREA.
+
+If AREA is nil, use the scroll area containing the current point."
   (overlay-end (phscroll-area-overlay (or area (phscroll-get-current-area)))))
 
-;; Area Finding
+;;;;; Area Finding
 
 (defun phscroll-area-from-overlay (ov)
+  "Return the scroll area object associated with the overlay object OV, or
+nil if none."
   (overlay-get ov 'phscroll-area))
 
 (defun phscroll-get-area-at (pos)
+  "Return the scroll area object at POS, or nil if none."
   (let (area
         (overlays (overlays-at pos)))
     (while (and overlays
@@ -663,9 +735,11 @@ Like a recenter-top-bottom."
     area))
 
 (defun phscroll-get-current-area ()
+  "Return the scroll area object at the current point, or nil if none."
   (phscroll-get-area-at (point)))
 
 (defun phscroll-enum-area (&optional beg end)
+  "Return a list of scroll area objects in the region from BEG to END."
   (interactive "r")
 
   (let* ((overlays (overlays-in (or beg (point-min)) (or end (point-max)))))
@@ -674,51 +748,76 @@ Like a recenter-top-bottom."
              collect (overlay-get ov 'phscroll-area))))
 
 (defun phscroll-update-all-area ()
+  "Update the display of all scroll area objects in the current buffer."
   (save-restriction
     (widen)
     (cl-loop for area in (phscroll-enum-area)
              do (phscroll-update-area-display area t))))
 
 (defun phscroll-invalidate-all-area ()
+  "Invalidate the display of all scroll area objects in the current buffer.
+
+Invalidation means marking them as needing a display update."
   (save-restriction
     (widen)
     (cl-loop for area in (phscroll-enum-area)
              do (phscroll-area-clear-updated-ranges area))))
 
 (defun phscroll-invalidate-region (beg end)
+  "Invalidate the display of scroll area objects in the region from BEG to END.
+
+Invalidation means marking them as needing a display update."
   (dolist (area (phscroll-enum-area beg end))
     (phscroll-area-remove-updated-range beg end area)))
 
 (defun phscroll-areas-in-window (&optional window)
+  "Return the scroll area objects within the visible range of WINDOW."
   (phscroll-enum-area
    (min (phscroll-window-start window))
    (max (phscroll-window-end window))))
 
 (defun phscroll-update-areas-in-window (&optional redraw window)
+  "Update the display of scroll area objects within the visible range of WINDOW.
+
+If REDRAW is non-nil, also re-update already updated portions within the range."
   ;; (phscroll-log "Update Areas In Window: %s %s" redraw window)
   (cl-loop for area in (phscroll-areas-in-window window)
            do (phscroll-update-area-display area redraw window)))
 
-;;;; Updated Range Management
+;;;;; Updated Range List Management
+
+;; The updated range list has the following format:
+;;   ((-1 . -1) (beg0 . end0) (beg1 . end1) ... (begN . endN))
 ;;
-;; updated-ranges:
-;; ((-1 . -1) (beg0 . end0) (beg1 . end1) ... (begN . endN))
+;; Note: The leading (-1 . -1) is a dummy cons cell to simplify
+;;       the implementation; the actual list starts from its cdr.
+
+;; Constraints on the updated range list:
+;; - Positions (begN, endN) are stored as relative offsets from
+;;   the beginning of the area
+;; - Ranges are always sorted in ascending order of position
+;; - Ranges never overlap; adjacent ranges are always merged into one
 
 (defun phscroll-area-updated-ranges-head (area)
+  "Return the cons cell whose cdr is the updated range list of AREA."
   (nth 3 area))
 
 (defun phscroll-area-updated-ranges-get (area)
+  "Return the updated range list of AREA."
   (cdr (phscroll-area-updated-ranges-head area)))
 
 (defun phscroll-area-updated-ranges-set (area ranges)
+  "Set the updated range list of AREA to RANGES."
   (when area
     (setcdr (nth 3 area) ranges))
   area)
 
 (defun phscroll-area-clear-updated-ranges (area)
+  "Clear the updated range list of AREA."
   (phscroll-area-updated-ranges-set area nil))
 
 (defun phscroll-area-add-updated-range (beg end area)
+  "Add the updated range BEG to END to AREA."
   ;; 1. check and normalize range (beg, end), if empty then exit
   (when (and (< beg end) area)
     (let ((area-begin (phscroll-area-begin area))
@@ -760,6 +859,8 @@ Like a recenter-top-bottom."
   area)
 
 (defun phscroll-area-remove-updated-range (beg end area)
+  "Remove the range BEG to END from the updated range list of AREA, marking
+it as not yet updated."
   ;; 1. check and normalize range (beg, end), if empty then exit
   (when (and (< beg end) area)
     (let ((area-begin (phscroll-area-begin area))
@@ -819,6 +920,7 @@ Like a recenter-top-bottom."
                       (setq prev-r (cddr prev-r)))))))))))))
   area)
 
+;; Example:
 ;; (setq test-area (phscroll-area-create 10 22))
 ;; (phscroll-area-add-updated-range 12 14 test-area)
 ;; (phscroll-area-add-updated-range 16 18 test-area)
@@ -828,6 +930,8 @@ Like a recenter-top-bottom."
 ;; (phscroll-area-remove-updated-range 10 22 test-area)
 
 (defun phscroll-area-needs-update-range (beg end area)
+  "Return non-nil if there are any not-yet-updated portions of AREA within
+the region from BEG to END."
   (when (and (< beg end) area)
     (let ((area-begin (phscroll-area-begin area))
           (area-end (phscroll-area-end area)))
@@ -844,9 +948,12 @@ Like a recenter-top-bottom."
           (lambda (range) (and (<= (car range) beg) (<= end (cdr range))))
           (phscroll-area-updated-ranges-head area)))))))
 
+;; Example:
 ;;(phscroll-area-needs-update-range 21 23 test-area)
 
 (defun phscroll-area-shift-updated-ranges-after (pos delta area)
+  "Shift all positions at or after POS in the updated range list of AREA by
+DELTA."
   (when (and area (/= delta 0))
     (let ((area-begin (phscroll-area-begin area))
           (r (cdr (phscroll-area-updated-ranges-head area))))
@@ -866,23 +973,35 @@ Like a recenter-top-bottom."
           (setq r (cdr r))))))
   area)
 
+;; Example:
 ;;(phscroll-area-shift-updated-ranges-after 51 10 test-area)
 
-;; Area outer width
+;;;;; Area Window Width
 
-;; area毎にレイアウト時のウィンドウ幅を記録している。
-;; 複数のウィンドウが異なる幅を持つ場合にarea毎に別々の幅で表示できると便利なので。
-;; 更新時に以前のウィンドウ幅と変わっている場合は、全ての範囲を無効化して再描画する。
-;; 別々のウィンドウに同じareaが表示される場合はレイアウトが乱れる場合もあるがそれは諦める。
+;; The window width at layout time is recorded for each area.
+;; This allows each area to be displayed with a different width
+;; when multiple windows have different widths.
+;; If the window width has changed since the last update, all ranges
+;; are invalidated and redrawn.
+;; If the same area is displayed in multiple windows with different widths,
+;; the layout may be corrupted, but this is accepted as a limitation.
 
 (defun phscroll-area-get-window-width (area)
+  "Return the window width at the time AREA was last updated.
+
+Always returns an integer, but may return an invalid value such as -1 if
+the area has not yet been updated."
   (nth 4 area))
 
 (defun phscroll-area-set-window-width (area width)
+  "Set the window width at the time AREA was last updated to WIDTH."
   (setcar (nthcdr 4 area) width))
 
-(defun phscroll-area-window-width-changed-p (area window)
-  (let ((new-width (phscroll-window-width window))) ;;;@todo find minimum width of (phscroll-window-width-at line-pos window) ?
+(defun phscroll-area-set-window-width-and-changed-p (area window)
+  "Update the recorded window width of AREA to the current width of WINDOW.
+
+Return t if the width has changed, nil otherwise."
+  (let ((new-width (phscroll-window-width window))) ;; TODO: find minimum width of (phscroll-window-width-at line-pos window) ?
     (when (not (= new-width (phscroll-area-get-window-width area)))
       (phscroll-area-set-window-width area new-width)
       t)))
@@ -891,35 +1010,56 @@ Like a recenter-top-bottom."
 
 ;;;; Event Handlers
 
+;;;;; Hooks
 
 ;; (defun phscroll-on-window-size-changed (&optional _frame)
 ;;   ;;(message "window-size-changed width beg=%s end=%s width=%s" (window-start) (window-end) (window-width))
 ;;   ;;(phscroll-update-all-area) ;;Too slow
 ;;   ;;(phscroll-update-areas-in-window) ;;Do not use. window-start and window-end are not updated
-;; ;;  (phscroll-invalidate-all-area) ;;Use phscroll-area-window-width-changed-p
+;; ;;  (phscroll-invalidate-all-area) ;;Use phscroll-area-set-window-width-and-changed-p
 ;;   )
 
 (defun phscroll-on-post-command ()
-  ;(message "on post command window-end=%s" (window-end))
-  ;;(phscroll-show-point (point))
+  "Update scroll areas after each command execution.
 
+This function is registered in `post-command-hook' by `phscroll-mode'."
+  ;;(message "on post command window-end=%s" (window-end))
+
+  ;; Make the current point visible.
+  ;;(phscroll-show-point (point))
   (unless (cl-find this-command phscroll-interactive-scroll-commands)
     (phscroll-scroll-point (point)))
+
+  ;; Update the display of the scroll area that is in the visible range.
   ;;(phscroll-update-area-display (phscroll-get-area-at (point)))
-  (phscroll-update-areas-in-window nil nil)
-  )
+  (phscroll-update-areas-in-window nil nil))
 
 (defun phscroll-on-window-scroll (window _new-display-start-pos)
+  "Update scroll areas when a window is scrolled.
+
+This function is registered in `window-scroll-functions' by `phscroll-mode'."
   (phscroll-update-areas-in-window nil window))
 
 (defun phscroll-on-pre-redisplay (&optional window)
+  "Update scroll areas just before a window is redisplayed.
+
+This function is registered in `pre-redisplay-functions' by `phscroll-mode'."
   ;;(message "redisplay window=%s start=%s end=%s width=%s" window (window-start window) (window-end window) (window-width window))
   (phscroll-check-truncate-lines)
   (phscroll-update-areas-in-window nil window))
 
-(defvar-local phscroll-update-area-display-on-modified t)
+(defvar-local phscroll-update-area-display-on-modified t
+  "When nil, display updates are not performed on text modification.
+See: `phscroll-on-modified'.")
 
 (defun phscroll-on-modified (ov after beg end &optional before-length)
+  "Called when text is modified within a scroll area.
+
+Updates the updated range list according to the modification and
+refreshes the scroll display.
+
+This function is set in the modification-hooks property of the overlay
+covering the area."
   ;;(message "modified %s %s %s %s" after beg end before-length)
   (when after
     (let* ((after-length (- end beg))
@@ -927,39 +1067,50 @@ Like a recenter-top-bottom."
            (area (phscroll-area-from-overlay ov)))
       (when area
         (if (= (phscroll-area-begin area) (phscroll-area-end area))
-            ;; destroy empty area
+            ;; Destroy the empty scroll area
             (phscroll-area-destroy area)
-          ;; update modified range
+          ;; Update modified range
           (cond
            ((> delta-length 0)
             (phscroll-area-shift-updated-ranges-after beg delta-length area)
-            (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end end) area))
+            (phscroll-area-remove-updated-range (phscroll-line-begin beg)
+                                                (phscroll-line-end end)
+                                                area))
 
            ((< delta-length 0)
-            (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end (+ beg before-length)) area)
+            (phscroll-area-remove-updated-range (phscroll-line-begin beg)
+                                                (phscroll-line-end
+                                                 (+ beg before-length))
+                                                area)
             (phscroll-area-shift-updated-ranges-after end delta-length area))
 
            (t
-            (phscroll-area-remove-updated-range (phscroll-line-begin beg) (phscroll-line-end end) area)))
-          ;;;@todo do pre-redisplay only?
+            (phscroll-area-remove-updated-range (phscroll-line-begin beg)
+                                                (phscroll-line-end end)
+                                                area)))
+          ;; TODO: do pre-redisplay only?
           (when phscroll-update-area-display-on-modified
             (phscroll-update-area-display area)))))))
 
 
 (defun phscroll-check-truncate-lines ()
+  "Handle changes to the value of the `truncate-lines' variable."
   (when (not (equal truncate-lines phscroll-truncate-lines))
     (setq phscroll-truncate-lines truncate-lines)
     (when phscroll-truncate-lines
-      ;; remove left, right overlays
+      ;; Remove left and right overlays
       (cl-loop for area in (phscroll-enum-area)
                do (let ((beg (phscroll-area-begin area))
                         (end (phscroll-area-end area)))
                     (remove-overlays beg end 'phscroll-left t)
                     (remove-overlays beg end 'phscroll-right t))))
-    ;; remove update-ranges and redraw
+    ;; Invalidate and redraw all areas
     (phscroll-update-all-area)))
 
-;; Mouse Wheel
+;;;;; Mouse Wheel
+
+;; Provides Shift+mouse wheel horizontal scrolling, similar to
+;; `mouse-wheel-mode'."
 
 (defcustom phscroll-mwheel-scroll-amount-horizontal nil
   "Amount to scroll phscroll areas horizontally."
@@ -968,14 +1119,20 @@ Like a recenter-top-bottom."
   :group 'phscroll)
 
 (defun phscroll-mwheel-scroll-left (event)
+  "Scroll left using the mouse wheel."
   (interactive "e")
   (phscroll-mwheel-scroll-left-right-internal event 1))
 
 (defun phscroll-mwheel-scroll-right (event)
+  "Scroll right using the mouse wheel."
   (interactive "e")
   (phscroll-mwheel-scroll-left-right-internal event -1))
 
 (defun phscroll-mwheel-scroll-left-right-internal (event dir)
+  "Perform horizontal scrolling using the mouse wheel.
+
+This is the implementation of `phscroll-mwheel-scroll-left' and
+`phscroll-mwheel-scroll-right'."
   (interactive "e")
   (when-let* ((point (posn-point (event-start event)))
               (window (posn-window (event-start event))))
@@ -989,7 +1146,7 @@ Like a recenter-top-bottom."
                 4))
          area)))))
 
-;; Keymap
+;;;;; Area Local Keymap
 
 (defvar phscroll-keymap
   (let ((map (make-sparse-keymap)))
@@ -1017,14 +1174,14 @@ Like a recenter-top-bottom."
 ;;;; Window Utilities
 
 
-(defvar phscroll-use-window-end-update nil) ;;;@todo
+(defvar phscroll-use-window-end-update nil) ;; TODO:
 
 (defun phscroll-window-start (window)
-  ;;@todo pre-redisplay-functions 内では正しい値を返さない？
+  ;; TODO: pre-redisplay-functions 内では正しい値を返さない？
   (window-start window))
 
 (defun phscroll-window-end (window)
-  ;;@todo pre-redisplay-functions 内では正しい値を返さない。徐々に増えていく場合がある。
+  ;; TODO: pre-redisplay-functions 内では正しい値を返さない。徐々に増えていく場合がある。
   (max
    (or (window-end window phscroll-use-window-end-update) 0)
    ;; window-startからwindow行数だけ進んだ場所。
@@ -1072,8 +1229,13 @@ Like a recenter-top-bottom."
   "Fontifying range (BEG . END).")
 
 (defun phscroll-update-area-display (area &optional redraw window)
+  "Update the display of scroll AREA.
+
+If REDRAW is non-nil, clear the updated range list of AREA before updating.
+
+WINDOW is the window to display in; nil means the selected window."
   (when (and area (not phscroll-truncate-lines))
-    (if (or (phscroll-area-window-width-changed-p area window) ;;First, update area.window-width
+    (if (or (phscroll-area-set-window-width-and-changed-p area window) ;;First, update area.window-width
             redraw)
         (phscroll-area-clear-updated-ranges area))
 
@@ -1103,12 +1265,16 @@ Like a recenter-top-bottom."
       (when (and (< update-begin update-end)
                  (phscroll-area-needs-update-range update-begin update-end area))
         ;; for each lines
-        (phscroll-update-area-lines-display area scroll-column update-begin update-end window)
+        (phscroll-update-area-lines-display area scroll-column update-begin
+                                            update-end window)
         ;; add updated range
-        (phscroll-area-add-updated-range update-begin update-end area)
-        ))))
+        (phscroll-area-add-updated-range update-begin update-end area)))))
 
-(defun phscroll-update-area-lines-display (area scroll-column update-begin update-end window)
+(defun phscroll-update-area-lines-display (area
+                                           scroll-column
+                                           update-begin update-end window)
+  "Update the display of the region from UPDATE-BEGIN to UPDATE-END within
+scroll AREA."
   (save-excursion
     ;; Ensure that the update range is within the point movable range.
     (when (< update-begin (point-min))
@@ -1131,6 +1297,14 @@ Like a recenter-top-bottom."
         (forward-line)))))
 
 (defun phscroll-update-current-line-display (scroll-column window)
+  "Update the display of a single line within a scroll area.
+
+The current point is assumed to be at the beginning of the line.
+
+SCROLL-COLUMN is the number of columns to be hidden on the left side of
+the window.
+
+WINDOW is the window to display in; nil means the selected window."
   ;; | line                            |
   ;; | left(9) | middle(14)   | right  |  <part(limit)
   ;; |ABCDEFGHI|JKLMNOPQRSTUVW|XYZ01234|
@@ -1143,7 +1317,8 @@ Like a recenter-top-bottom."
          (line-overlays (phscroll-get-overlay-cache line-begin line-end))
          ;; left invisible
          (left-limit-width scroll-column)
-         (left-str-width (phscroll-substring-over-width line-str left-limit-width line-overlays)) ;;@todo phscroll-calculate-in-pixels case
+         (left-str-width (phscroll-substring-over-width
+                          line-str left-limit-width line-overlays)) ;; TODO: phscroll-calculate-in-pixels case
          (left-str (car left-str-width))
          (left-width (cdr left-str-width)) ;; 0 ~ left-limit-width + overflow
          (left-overflow (max 0 (- left-width scroll-column))) ;; 0 ~ overflow
@@ -1187,27 +1362,35 @@ Like a recenter-top-bottom."
         (overlay-put ov 'phscroll t)
         (overlay-put ov 'phscroll-right t)
         (overlay-put ov 'evaporate t)
-        (overlay-put ov 'priority 10)))
-    ))
+        (overlay-put ov 'priority 10)))))
 
 
 
 ;;;; Text Utilities
 
+;;;;; Beginning and End of lines
 
 (defun phscroll-line-begin (&optional pos)
+  "Return the position of the beginning of the line.
+
+If POS is specified, return the position for the line containing POS;
+otherwise return the position for the line containing the current point."
   (let ((inhibit-field-text-motion t))
     (if pos
         (save-excursion (goto-char pos) (line-beginning-position))
       (line-beginning-position))))
 
 (defun phscroll-line-end (&optional pos)
+  "Return the position of the end of the line.
+
+If POS is specified, return the position for the line containing POS;
+otherwise return the position for the line containing the current point."
   (let ((inhibit-field-text-motion t))
     (if pos
         (save-excursion (goto-char pos) (line-end-position))
       (line-end-position))))
 
-;; Text Operation Like a String
+;;;;; Text Operation Like a String
 
 (defun phscroll-buffer-substring (beg end)
   ;;ignore-overlay: (buffer-substring-no-properties beg end)
@@ -1230,7 +1413,7 @@ Like a recenter-top-bottom."
   )
 
 
-;; Overlay Cache for Text Width Calculation
+;;;;; Overlay Cache for Text Width Calculation
 
 (defun phscroll-ovc-create (type pvalue ov)
   (list type
@@ -1253,6 +1436,16 @@ Like a recenter-top-bottom."
                 (phscroll-ovc-priority ovc2))))))
 
 (defun phscroll-get-overlay-cache (beg end)
+  "Return a list of objects holding information about overlays between BEG
+and END that affect text width calculation.
+
+Each object is created by `phscroll-ovc-create' and accessed via
+functions prefixed with `phscroll-ovc-'.
+
+The list is sorted by overlay start position, priority, and other
+properties, allowing sequential processing from the beginning.
+
+Overlays that do not affect text width calculation are excluded."
   (let* ((overlays (overlays-in beg end))
          (iter overlays))
     ;; filter overlays
@@ -1291,6 +1484,7 @@ Like a recenter-top-bottom."
              (<= (phscroll-ovc-beg (car cache)) pos)) ;; ovc.beg <= pos
     (car cache)))
 
+;;;;; Invisibility Specs
 
 (defconst phscroll-ignored-invisibility-specs
   ;; See:
@@ -1312,9 +1506,17 @@ should be ignored."
            (seq-some (lambda (x) (memq x phscroll-ignored-invisibility-specs))
                      prop-value))))
 
-;; Character Width Calculation
+;;;;; Character Width Calculation
 
 (defun phscroll-char-width-next (pos cache)
+  "Return the width of the character at POS and the position of the next
+character.
+
+CACHE is the list returned by `phscroll-get-overlay-cache'.
+
+Return value format: (COLUMNS . NEXT-POSITION)
+
+Overlays and text properties are taken into account as much as possible."
   (let (ovc display invisible)
     (cond
      ;; overlays
@@ -1349,7 +1551,7 @@ should be ignored."
 
 (defun phscroll-display-property-width (display)
   ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Display-Property.html#Display-Property
-  ;;@todo support more formats
+  ;; TODO: support more formats
   (cond
    ;; string
    ((stringp display)
@@ -1362,7 +1564,7 @@ should be ignored."
         (+
          (phscroll-resolve-space-pixel-spec-chars (plist-get props :width))
          (let ((factor (plist-get props :relative-width)))
-           (if (numberp factor) (ceiling factor) 0))))) ;;@todo (* factor (char-width <first char>))
+           (if (numberp factor) (ceiling factor) 0))))) ;; TODO: (* factor (char-width <first char>))
      (t 0)))
    ;; unknown
    (t 0)))
@@ -1383,7 +1585,7 @@ should be ignored."
 
 (defun phscroll-invisible-property-width (invisible beg end)
   ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Invisible-Text.html
-  ;;@todo Detect changes in buffer-invisibility-spec.
+  ;; TODO: Detect changes in buffer-invisibility-spec.
   (pcase (invisible-p invisible) ;; Consider buffer-invisibility-spec.
     ('nil (string-width (buffer-substring-no-properties beg end)))
     ('t 0)
@@ -1400,6 +1602,10 @@ should be ignored."
 ;; Text Width Calculation
 
 (defun phscroll-text-width (beg end &optional cache-arg)
+  "Return the width in columns of the text between BEG and END.
+
+CACHE-ARG is the list returned by `phscroll-get-overlay-cache'; if nil,
+this function calls `phscroll-get-overlay-cache' internally."
   (let ((width 0)
         (pos beg)
         (cache (or cache-arg (phscroll-get-overlay-cache beg end))))
@@ -1409,12 +1615,26 @@ should be ignored."
         (setq pos (cdr width-next))))
     width))
 
-(defun phscroll-string-width (str &optional cache)
+(defun phscroll-string-width (str &optional cache-arg)
+  "Return the width in columns of STR.
+
+STR must be a value returned by `phscroll-buffer-substring' or
+`phscroll-current-line-string'.
+
+CACHE-ARG is the list returned by `phscroll-get-overlay-cache'; if nil,
+this function calls `phscroll-get-overlay-cache' internally."
   ;;ignore-overlay: (string-width str)
-  (phscroll-text-width (car str) (cdr str) cache)
-  )
+  (phscroll-text-width (car str) (cdr str) cache-arg))
 
 (defun phscroll-truncate-string-to-width (str end-column &optional cache-arg)
+  "Return the substring of STR that fits within END-COLUMN columns from the
+beginning.
+
+STR must be a value returned by `phscroll-buffer-substring' or
+`phscroll-current-line-string'.
+
+CACHE-ARG is the list returned by `phscroll-get-overlay-cache'; if nil,
+this function calls `phscroll-get-overlay-cache' internally."
   ;;ignore-overlay: (truncate-string-to-width str end-column)
   (phscroll-log "truncate-string-to-width str=%s end-column=%s cache-arg=%s" str end-column cache-arg)
   (let* ((width 0)
@@ -1435,6 +1655,16 @@ should be ignored."
       (cons (cons beg pos) width))))
 
 (defun phscroll-substring-over-width (str end-column &optional cache-arg)
+  "Return the substring of STR that covers at least END-COLUMN columns from
+the beginning.
+
+STR must be a value returned by `phscroll-buffer-substring' or
+`phscroll-current-line-string'.
+
+CACHE-ARG is the list returned by `phscroll-get-overlay-cache'; if nil,
+this function calls `phscroll-get-overlay-cache' internally.
+
+Return value format: (RESULT-STR . RESULT-STR-WIDTH)"
   ;;ignore-overlay:
   ;; (let ((len (phscroll-string-length str))
   ;;       (i 0))
@@ -1472,7 +1702,7 @@ should be ignored."
                            for invis = (overlay-get ov 'invisible)
                            when (phscroll-ignored-invisibility-spec-p invis)
                            collect (progn
-                                     ;; @todo (if (listp invis) (seq-difference invis phscroll-ignored-invisibility-specs) nil)?
+                                     ;; TODO: (if (listp invis) (seq-difference invis phscroll-ignored-invisibility-specs) nil)?
                                      (overlay-put ov 'invisible nil)
                                      (cons ov invis)))))
     (unwind-protect
