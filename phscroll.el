@@ -1472,17 +1472,22 @@ Overlays that do not affect text width calculation are excluded."
 
     ;; delete nil
     (setq overlays (delq nil overlays))
-    ;; sort by overlay-start and priority
-    (sort overlays #'phscroll-ovc-less)))
+    (if overlays
+        ;; sort by overlay-start and priority
+        (sort overlays #'phscroll-ovc-less)
+      ;; If there is no valid overlay, return a dummy symbol to
+      ;; represent it to suppress rescanning.
+      'empty)))
 
 (defun phscroll-get-overlay-at (pos cache)
-  ;;discard ovc.end <= pos
-  (while (and cache (<= (phscroll-ovc-end (car cache)) pos))
-    (setq cache (cdr cache)))
+  (when (consp cache)
+    ;;discard ovc.end <= pos
+    (while (and cache (<= (phscroll-ovc-end (car cache)) pos))
+      (setq cache (cdr cache)))
 
-  (when (and cache
-             (<= (phscroll-ovc-beg (car cache)) pos)) ;; ovc.beg <= pos
-    (car cache)))
+    (when (and cache
+               (<= (phscroll-ovc-beg (car cache)) pos)) ;; ovc.beg <= pos
+      (car cache))))
 
 ;;;;; Invisibility Specs
 
