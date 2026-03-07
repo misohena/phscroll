@@ -305,8 +305,7 @@ for special cases."
           (end (phscroll-area-end area))
           (ov (phscroll-area-overlay area)))
       (phscroll-log "Area: Destroy %s~%s" beg end)
-      (remove-overlays beg end 'phscroll-left t)
-      (remove-overlays beg end 'phscroll-right t)
+      (phscroll-remove-line-veils-region beg end)
       (delete-overlay ov))))
 
 
@@ -331,17 +330,14 @@ Return AREA."
             ;; If there is no overlap between old and new, simply remove old
             (progn
               (phscroll-area-clear-updated-ranges area)
-              (remove-overlays old-beg old-end 'phscroll-left t)
-              (remove-overlays old-beg old-end 'phscroll-right t))
+              (phscroll-remove-line-veils-region old-beg old-end))
           ;; If overlap, remove protruding part
           (when (< old-beg beg)
             (phscroll-area-remove-updated-range old-beg beg area)
-            (remove-overlays old-beg beg 'phscroll-left t)
-            (remove-overlays old-beg beg 'phscroll-right t))
+            (phscroll-remove-line-veils-region old-beg beg))
           (when (< end old-end)
             (phscroll-area-remove-updated-range end old-end area)
-            (remove-overlays end old-end 'phscroll-left t)
-            (remove-overlays end old-end 'phscroll-right t)))
+            (phscroll-remove-line-veils-region end old-end)))
         ;; Shift relative positions in updated ranges list
         (when (/= old-beg beg)
           (phscroll-area-shift-updated-ranges-after old-beg (- old-beg beg)
@@ -1023,6 +1019,7 @@ Return t if the width has changed, nil otherwise."
   "Update scroll areas after each command execution.
 
 This function is registered in `post-command-hook' by `phscroll-mode'."
+  (phscroll-log "Overview: On post-command point=%s" (point))
   ;;(message "on post command window-end=%s" (window-end))
 
   ;; Make the current point visible.
@@ -1032,12 +1029,14 @@ This function is registered in `post-command-hook' by `phscroll-mode'."
 
   ;; Update the display of the scroll area that is in the visible range.
   ;;(phscroll-update-area-display (phscroll-get-area-at (point)))
+  (phscroll-log "Overview: Update by post-command point=%s" (point))
   (phscroll-update-areas-in-window nil nil))
 
 (defun phscroll-on-window-scroll (window _new-display-start-pos)
   "Update scroll areas when a window is scrolled.
 
 This function is registered in `window-scroll-functions' by `phscroll-mode'."
+  (phscroll-log "Overview: Update by window-scroll")
   (phscroll-update-areas-in-window nil window))
 
 (defun phscroll-on-pre-redisplay (&optional window)
@@ -1046,6 +1045,7 @@ This function is registered in `window-scroll-functions' by `phscroll-mode'."
 This function is registered in `pre-redisplay-functions' by `phscroll-mode'."
   ;;(message "redisplay window=%s start=%s end=%s width=%s" window (window-start window) (window-end window) (window-width window))
   (phscroll-check-truncate-lines)
+  (phscroll-log "Overview: Update by pre-redisplay")
   (phscroll-update-areas-in-window nil window))
 
 (defvar-local phscroll-update-area-display-on-modified t
@@ -1090,6 +1090,7 @@ covering the area."
                                                 area)))
           ;; TODO: do pre-redisplay only?
           (when phscroll-update-area-display-on-modified
+            (phscroll-log "Overview: Update by phscroll-on-modified")
             (phscroll-update-area-display area)))))))
 
 
@@ -1102,9 +1103,9 @@ covering the area."
       (cl-loop for area in (phscroll-enum-area)
                do (let ((beg (phscroll-area-begin area))
                         (end (phscroll-area-end area)))
-                    (remove-overlays beg end 'phscroll-left t)
-                    (remove-overlays beg end 'phscroll-right t))))
+                    (phscroll-remove-line-veils-region beg end))))
     ;; Invalidate and redraw all areas
+    (phscroll-log "Overview: Update by phscroll-check-truncate-lines")
     (phscroll-update-all-area)))
 
 ;;;;; Mouse Wheel
@@ -1257,13 +1258,13 @@ WINDOW is the window to display in; nil means the selected window."
                                 (cdr phscroll-fontify-range)
                               (phscroll-window-end window)))))
 
-      (phscroll-log "Update Area: %s~%s update-range=%s~%s window-width=%s redraw=%s"
-                    area-begin area-end
-                    update-begin update-end
-                    (window-width window) redraw)
-
       (when (and (< update-begin update-end)
                  (phscroll-area-needs-update-range update-begin update-end area))
+        (phscroll-log "Overview: Update Area: %s~%s update-range=%s~%s window-width=%s redraw=%s"
+                      area-begin area-end
+                      update-begin update-end
+                      (window-width window) redraw)
+
         ;; for each lines
         (phscroll-update-area-lines-display area scroll-column update-begin
                                             update-end window)
@@ -1289,8 +1290,7 @@ scroll AREA."
             (line-end (phscroll-line-end)))
         (when (phscroll-area-needs-update-range line-begin line-end area)
           ;;(message "update line %d" (point))
-          (remove-overlays line-begin (1+ line-end) 'phscroll-left t) ;;include line-break
-          (remove-overlays line-begin (1+ line-end) 'phscroll-right t) ;;include line-break
+          (phscroll-remove-line-veils line-begin line-end)
           (save-excursion
             (phscroll-update-current-line-display scroll-column window)))
         ;; goto next line
@@ -1342,28 +1342,90 @@ WINDOW is the window to display in; nil means the selected window."
                   left-len middle-len
                   left-width middle-width)
 
-    (when (> scroll-column 0)
-      (let ((ov (make-overlay line-begin (+ line-begin left-len))))
-        (overlay-put ov 'display (if phscroll-use-fringe
-                                     '(left-fringe left-arrow)
-                                   "<"))
-        (overlay-put ov 'after-string (make-string left-overflow ?\s))
-        (overlay-put ov 'phscroll t)
-        (overlay-put ov 'phscroll-left t)
-        (overlay-put ov 'evaporate t)
-        (overlay-put ov 'priority 10)))
+    (phscroll-add-line-veils
+     line-begin line-end
+     left-len
+     left-overflow
+     middle-len
+     middle-shortage)))
+
+(defun phscroll-remove-line-veils (line-begin line-end)
+  (phscroll-remove-line-veils-region line-begin
+                                     ;;include line-break
+                                     (1+ line-end)))
+
+(defalias 'phscroll-add-line-veils
+  ;;#'phscroll-add-line-veils--textprop) ;; Experimental
+  #'phscroll-add-line-veils--overlay)
+
+(defalias 'phscroll-remove-line-veils-region
+  ;;#'phscroll-remove-line-veils-region--textprop) ;; Experimental
+  #'phscroll-remove-line-veils-region--overlay)
+
+(defun phscroll-add-line-veils--overlay (line-begin
+                                         line-end
+                                         left-len
+                                         left-overflow
+                                         middle-len
+                                         middle-shortage)
+  (when (> left-len 0)
+    (let ((ov (make-overlay line-begin (+ line-begin left-len))))
+      (overlay-put ov 'display (if phscroll-use-fringe
+                                   '(left-fringe left-arrow)
+                                 "<"))
+      (overlay-put ov 'after-string (make-string left-overflow ?\s))
+      (overlay-put ov 'phscroll t)
+      ;;(overlay-put ov 'phscroll-left t)
+      (overlay-put ov 'phscroll-line-veil t)
+      (overlay-put ov 'evaporate t)
+      (overlay-put ov 'priority 10)))
+
+  (when (< (+ line-begin left-len middle-len) line-end)
+    (let ((ov (make-overlay (+ line-begin left-len middle-len) line-end)))
+      (overlay-put ov 'display
+                   (if phscroll-use-fringe
+                       '(right-fringe right-arrow)
+                     (concat (make-string middle-shortage ?\s) ">")))
+      (overlay-put ov 'phscroll t)
+      ;;(overlay-put ov 'phscroll-right t)
+      (overlay-put ov 'phscroll-line-veil t)
+      (overlay-put ov 'evaporate t)
+      (overlay-put ov 'priority 10))))
+
+(defun phscroll-remove-line-veils-region--overlay (begin end)
+  (remove-overlays begin end 'phscroll-line-veil t))
+
+
+(defun phscroll-add-line-veils--textprop (line-begin
+                                          line-end
+                                          left-len
+                                          left-overflow
+                                          middle-len
+                                          middle-shortage) ;; Experimental
+  ;; TODO: Save old display properties
+  ;; TODO: Apply `phscroll-use-fringe'
+  (with-silent-modifications
+    (when (> left-len 0)
+      (let ((beg line-begin)
+            (end (+ line-begin left-len)))
+        (put-text-property beg end
+                           'display
+                           (concat
+                            "<" (make-string left-overflow ?\s)))
+        (put-text-property beg end 'phscroll-line-veil t)))
 
     (when (< (+ line-begin left-len middle-len) line-end)
-      (let ((ov (make-overlay (+ line-begin left-len middle-len) line-end)))
-        (overlay-put ov 'display
-                     (if phscroll-use-fringe
-                         '(right-fringe right-arrow)
-                       (concat (make-string middle-shortage ?\s) ">")))
-        (overlay-put ov 'phscroll t)
-        (overlay-put ov 'phscroll-right t)
-        (overlay-put ov 'evaporate t)
-        (overlay-put ov 'priority 10)))))
+      (let ((beg (+ line-begin left-len middle-len))
+            (end line-end))
+        (put-text-property beg end
+                           'display
+                           (concat (make-string middle-shortage ?\s) ">"))
+        (put-text-property beg end 'phscroll-line-veil t)))))
 
+(defun phscroll-remove-line-veils-region--textprop (begin end) ;; Experimental
+  (with-silent-modifications
+    (remove-text-properties begin end
+                            '(display nil phscroll-line-veil nil))))
 
 
 ;;;; Text Utilities
@@ -1446,6 +1508,7 @@ The list is sorted by overlay start position, priority, and other
 properties, allowing sequential processing from the beginning.
 
 Overlays that do not affect text width calculation are excluded."
+  (phscroll-log "phscroll-get-overlay-cache %s~%s" beg end)
   (let* ((overlays (overlays-in beg end))
          (iter overlays))
     ;; filter overlays

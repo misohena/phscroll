@@ -99,7 +99,7 @@
                  (not-table-re "^[ \t]*\\([^|+ \t]\\|\\+\\([^-]\\|$\\|-\\([^-+]\\|$\\|[-+]\\s-*$\\)\\)\\||\\s-*$\\|$\\)")
                  (phscroll-fontify-range (cons start limit))
                  not-table-beg)
-            (phscroll-log "Org Fontify: start=%s limit=%s line-end=%s"
+            (phscroll-log "Overview: Org Fontify: start=%s limit=%s line-end=%s"
                           start limit (phscroll-line-end))
 
             (while (progn
