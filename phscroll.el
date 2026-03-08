@@ -80,21 +80,32 @@ If it is nil, it is indicated by the < and > characters."
 (eval-and-compile
   (defcustom phscroll-log-generate nil
     "Control log code generation at compile time."
-    :group 'phscroll :type '(choice boolean regexp)))
+    :group 'phscroll :type '(choice boolean regexp))
+
+  (defun phscroll-log-generate-p (format-string)
+    (if (stringp phscroll-log-generate)
+        (string-match-p phscroll-log-generate format-string)
+      phscroll-log-generate)))
 
 (defcustom phscroll-log-output nil
   "Control log message output at runtime."
   :group 'phscroll :type '(choice boolean regexp))
 
+(defsubst phscroll-log-output-p (format-string)
+  (if (stringp phscroll-log-output)
+      (string-match-p phscroll-log-output format-string)
+    phscroll-log-output))
+
+(defmacro phscroll-log-expr (format-string expr &optional no-log-expr)
+  (if (phscroll-log-generate-p format-string)
+      expr
+    no-log-expr))
+
 (defmacro phscroll-log (format-string &rest args)
   "Log a message if enabled by `phscroll-log-generate' and
 `phscroll-log-output'."
-  (when (if (stringp phscroll-log-generate)
-            (string-match-p phscroll-log-generate format-string)
-          phscroll-log-generate)
-    `(when (if (stringp phscroll-log-output)
-               (string-match-p phscroll-log-output ,format-string)
-             phscroll-log-output)
+  (when (phscroll-log-generate-p format-string)
+    `(when (phscroll-log-output-p ,format-string)
        (message ,(concat "Phscroll " format-string) ,@args))))
 
 (defun phscroll-log-watch (regexp)
@@ -1036,16 +1047,20 @@ This function is registered in `post-command-hook' by `phscroll-mode'."
   "Update scroll areas when a window is scrolled.
 
 This function is registered in `window-scroll-functions' by `phscroll-mode'."
-  (phscroll-log "Overview: Update by window-scroll")
+  ;; Note: The value of `window-end' is not valid !!
+  (phscroll-log
+   "Overview: Update by window-scroll (%s~%s) %s new-start=%s"
+   (window-start window) (window-end window) window
+   _new-display-start-pos)
   (phscroll-update-areas-in-window nil window))
 
 (defun phscroll-on-pre-redisplay (&optional window)
   "Update scroll areas just before a window is redisplayed.
 
 This function is registered in `pre-redisplay-functions' by `phscroll-mode'."
-  ;;(message "redisplay window=%s start=%s end=%s width=%s" window (window-start window) (window-end window) (window-width window))
   (phscroll-check-truncate-lines)
-  (phscroll-log "Overview: Update by pre-redisplay")
+  (phscroll-log "Overview: Update by pre-redisplay (%s~%s) %s"
+                (window-start window) (window-end window) window)
   (phscroll-update-areas-in-window nil window))
 
 (defvar-local phscroll-update-area-display-on-modified t
