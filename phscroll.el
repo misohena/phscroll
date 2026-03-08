@@ -1290,11 +1290,40 @@ WINDOW is the window to display in; nil means the selected window."
                       update-begin update-end
                       (window-width window) redraw)
 
-        ;; for each lines
-        (phscroll-update-area-lines-display area scroll-column update-begin
-                                            update-end window)
-        ;; add updated range
-        (phscroll-area-add-updated-range update-begin update-end area)))))
+        (let ((actual-end
+               (phscroll-update-area-lines-display area scroll-column
+                                                   update-begin update-end
+                                                   window)))
+          ;; Mark [update-begin, actual-end) as updated
+          (phscroll-area-add-updated-range update-begin actual-end area))))))
+
+(defcustom phscroll-update-area-max-time 10.0
+  "Maximum time (in seconds) for updating the display of phscroll areas.
+If a single display update takes this long or longer, the update is aborted."
+  :group 'phscroll
+  :type '(float :tag "Seconds"))
+
+(defcustom phscroll-update-area-max-lines 'window-height
+  "Maximum number of lines for updating the display of phscroll areas.
+If the number of lines updated in a single display update reaches this
+value or more, the update is aborted."
+  :group 'phscroll
+  :type '(choice
+          (integer :tag "Lines")
+          (const :tag "Window height * 2" window-height)
+          (cons :tag "Window Height * n" (const window-height) number)))
+
+(defun phscroll-update-area-max-lines (window)
+  "Return the maximum number of lines for updating the display of phscroll
+areas.
+See: `phscroll-update-area-max-lines' variable."
+  (pcase phscroll-update-area-max-lines
+    ((and (pred integerp) n) n)
+    ('window-height
+     (* (window-height window 'ceiling) 2))
+    (`(window-height . ,(and (pred integerp) n))
+     (* (window-height window 'ceiling) n))
+    (_ 1000)))
 
 (defun phscroll-update-area-lines-display (area
                                            scroll-column
@@ -1310,18 +1339,36 @@ scroll AREA."
 
     (goto-char (phscroll-line-begin update-begin))
 
-    (while (< (point) update-end)
-      (let ((line-begin (phscroll-line-begin))
-            (line-end (phscroll-line-end)))
-        (when (phscroll-area-needs-update-range line-begin line-end area)
-          ;;(message "update line %d" (point))
-          (phscroll-remove-line-veils line-begin line-end)
-          (save-excursion
-            (phscroll-update-current-line-display scroll-column window)))
-        ;; goto next line
-        (forward-line)))))
+    (let ((start-time (float-time))
+          (line-count 0)
+          (updated-line-count 0)
+          (updated-line-limit (phscroll-update-area-max-lines window)))
 
-(defun phscroll-update-current-line-display (scroll-column window)
+      (while (and (< (point) update-end)
+                  (< (- (float-time) start-time) phscroll-update-area-max-time)
+                  (< updated-line-count updated-line-limit))
+        (let ((line-begin (phscroll-line-begin))
+              (line-end (phscroll-line-end)))
+          (when (phscroll-area-needs-update-range line-begin line-end area)
+            ;;(message "update line %d" (point))
+            (phscroll-remove-line-veils line-begin line-end)
+            (save-excursion
+              (phscroll-update-current-line-display line-begin line-end
+                                                    scroll-column window))
+            (cl-incf updated-line-count))
+          ;; goto next line
+          (cl-incf line-count)
+          (forward-line)))
+
+      (phscroll-log "Updated %d/%d lines in %f[ms]"
+                    updated-line-count line-count
+                    (* 1000 (- (float-time) start-time)))
+
+      ;; Return the end of the actual updated range
+      (point))))
+
+(defun phscroll-update-current-line-display (line-begin line-end
+                                                        scroll-column window)
   "Update the display of a single line within a scroll area.
 
 The current point is assumed to be at the beginning of the line.
@@ -1336,9 +1383,7 @@ WINDOW is the window to display in; nil means the selected window."
   ;; |あいうえおかきくけこ
   (let* ((window-width (phscroll-window-width-at (point) window))
          ;; current line
-         (line-str (phscroll-current-line-string))
-         (line-begin (phscroll-line-begin))
-         (line-end (phscroll-line-end))
+         (line-str (phscroll-buffer-substring line-begin line-end))
          (line-overlays (phscroll-get-overlay-cache line-begin line-end))
          ;; left invisible
          (left-limit-width scroll-column)
