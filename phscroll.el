@@ -1273,6 +1273,16 @@ WINDOW is the window to display in; nil means the selected window."
                                 (cdr phscroll-fontify-range)
                               (phscroll-window-end window)))))
 
+      ;; Skip folded region in outline-mode or org-mode
+      ;; (windowの表示範囲内を更新するとき、折りたたまれて見えない所ま
+      ;; で全て更新しようとすると膨大な行を更新しようとして長時間フリー
+      ;; ズすることがあるのでそれを防止する)
+      ;; TODO: areaの途中だけが折りたたまれているような状況に対応する。
+      ;; 実際にはareaがorg-modeのテーブルであればそのような状況はそう
+      ;; そう無い。あったとしても、折りたたまれている行数が少なければ
+      ;; パフォーマンスへの影響は少ない。
+      (setq update-begin (phscroll-skip-folded-region update-begin update-end))
+
       (when (and (< update-begin update-end)
                  (phscroll-area-needs-update-range update-begin update-end area))
         (phscroll-log "Overview: Update Area: %s~%s update-range=%s~%s window-width=%s redraw=%s"
@@ -1442,6 +1452,45 @@ WINDOW is the window to display in; nil means the selected window."
     (remove-text-properties begin end
                             '(display nil phscroll-line-veil nil))))
 
+;;;;; Folded Lines
+
+(defconst phscroll-folding-invisibility-specs
+  ;; See:
+  ;; - `org-fold-initialize'
+  ;; - `org-string-width-invisibility-spec'
+  ;; - `outline-flag-region'
+  '(outline org-fold-drawer org-fold-block org-fold-outline))
+
+(defun phscroll-folding-invisibility-spec-p (prop-value)
+  (or (memq prop-value phscroll-folding-invisibility-specs)
+      ;; When PROP-VALUE has multiple specs.
+      (and (listp prop-value)
+           (seq-some (lambda (x) (memq x phscroll-folding-invisibility-specs))
+                     prop-value))))
+
+(defun phscroll-folded-overlay-p (ov)
+  (phscroll-folding-invisibility-spec-p (overlay-get ov 'invisible)))
+
+(defun phscroll-skip-folded-region (pos limit)
+  ;; テキストプロパティも考慮する場合:
+  ;; (while (and (< pos limit)
+  ;;             (phscroll-folding-invisibility-spec-p
+  ;;              (get-char-property pos 'invisible)))
+  ;;   (setq pos (next-single-char-property-change pos 'invisible nil limit)))
+  ;; オーバーレイのみを考慮する場合:
+  (while (and (< pos limit)
+              (let ((folded-ov (seq-find #'phscroll-folded-overlay-p
+                                         (overlays-at pos))))
+                (when folded-ov
+                  (setq pos (max (1+ pos) (overlay-end folded-ov)))
+                  (phscroll-log "Skip folded region %s~%s"
+                                (overlay-start folded-ov)
+                                (overlay-end folded-ov))
+                  t))))
+  ;; テキストプロパティを考慮すると、折りたたまれた範囲に巨大な
+  ;; phscrollエリアがあった時に、それがウィンドウの中にあると
+  ;; post-command-hookで毎回大きな時間を消費してしまう。
+  pos)
 
 ;;;; Text Utilities
 
@@ -1570,11 +1619,7 @@ Overlays that do not affect text width calculation are excluded."
 ;;;;; Invisibility Specs
 
 (defconst phscroll-ignored-invisibility-specs
-  ;; See:
-  ;; - `org-fold-initialize'
-  ;; - `org-string-width-invisibility-spec'
-  ;; - `outline-flag-region'
-  '(outline org-fold-drawer org-fold-block org-fold-outline)
+  phscroll-folding-invisibility-specs
   "List of invisibility specs to ignore when calculating text width.
 
 Contents folded by outline-mode or org-mode are invisible, but their
