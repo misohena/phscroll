@@ -149,6 +149,13 @@ loading the library."
   (message "Log output disabled"))
 
 
+;;;; Compatibility
+
+(eval-and-compile
+  (defalias 'phscroll-incf (if (>= emacs-major-version 31) 'incf 'cl-incf))
+  (defalias 'phscroll-decf (if (>= emacs-major-version 31) 'decf 'cl-decf)))
+
+
 ;;;; Basic Commands
 
 (defvar-local phscroll-truncate-lines nil) ;; to detect truncate-lines change
@@ -1586,9 +1593,9 @@ scroll AREA."
             (save-excursion
               (phscroll-update-current-line-display line-begin line-end
                                                     scroll-column window))
-            (cl-incf updated-line-count))
+            (phscroll-incf updated-line-count))
           ;; goto next line
-          (cl-incf line-count)
+          (phscroll-incf line-count)
           (forward-line)))
 
       (phscroll-log "Updated %d/%d lines in %f[ms]"
