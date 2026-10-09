@@ -175,6 +175,8 @@ loading the library."
     (when (boundp 'mouse-wheel-up-event)
       (define-key map (vector (list 'shift mouse-wheel-up-event))
                   #'phscroll-mwheel-scroll-right*))
+    (define-key map [touchscreen-scroll]
+                #'phscroll-touch-screen-scroll*)
     map)
   "Keymap applied when `phscroll-mode' is enabled.
 
@@ -534,7 +536,8 @@ Return a new area that is the second half of the divided area."
     phscroll-recenter
     phscroll-recenter-left-right
     phscroll-mwheel-scroll-left
-    phscroll-mwheel-scroll-right))
+    phscroll-mwheel-scroll-right
+    phscroll-touch-screen-scroll))
 
 (defun phscroll-get-scroll-column (&optional area)
   "Return the horizontal scroll position (in columns) of AREA.
@@ -800,10 +803,19 @@ nil if none."
   (overlay-get ov 'phscroll-area))
 
 (defun phscroll-get-area-at-event (event)
-  (when-let* ((point (posn-point (event-start event)))
-              (window (posn-window (event-start event))))
-    (with-current-buffer (window-buffer window)
-      (phscroll-get-area-at point))))
+  (cond
+   ((memq (car-safe event) '(touchscreen-scroll))
+    (when (boundp 'touch-screen-current-tool)
+      (let ((window (nth 1 touch-screen-current-tool))
+            (point (posn-point (nth 4 touch-screen-current-tool))))
+        (when (and (window-live-p window) (integerp point))
+          (with-current-buffer (window-buffer window)
+            (phscroll-get-area-at point))))))
+   (t
+    (when-let* ((point (posn-point (event-start event)))
+                (window (posn-window (event-start event))))
+      (with-current-buffer (window-buffer window)
+        (phscroll-get-area-at point))))))
 
 (defun phscroll-last-event-area ()
   (phscroll-get-area-at-event last-command-event))
@@ -1238,6 +1250,36 @@ This is the implementation of `phscroll-mwheel-scroll-left' and
                 4))
          area)))))
 
+;;;;; Touch Screen Event
+
+(defvar phscroll-touch-screen-scroll-accumulator 0)
+(defvar phscroll-touch-screen-scroll-default-command 'touch-screen-scroll)
+
+(defun phscroll-touch-screen-scroll (event)
+  (interactive "e")
+  (when-let* ((area (phscroll-last-event-area)))
+    (let* ((dx (nth 2 event))
+           (accumulator
+            (phscroll-incf phscroll-touch-screen-scroll-accumulator dx))
+           (char-w (frame-char-width))
+           (sign (if (< accumulator 0) -1 1))
+           (columns (/ (abs accumulator) char-w)))
+      (when (>= columns 1)
+        (if (> accumulator 0)
+            (phscroll-scroll-left columns area)
+          (phscroll-scroll-right columns area))
+        (phscroll-decf phscroll-touch-screen-scroll-accumulator
+                       (* sign char-w columns))))
+    ;; Set dx=0 to suppress window hscroll.
+    (setq event (copy-sequence event))
+    (setf (nth 2 event) 0))
+
+  ;; Call default touch scroll command
+  ;; TODO: Determine the correct command from the current keymap.
+  (when (fboundp phscroll-touch-screen-scroll-default-command)
+    (funcall phscroll-touch-screen-scroll-default-command event)))
+
+
 ;;;;; Area Local Keymap
 
 (defvar phscroll-keymap
@@ -1394,6 +1436,7 @@ were disabled."
 (phscroll-define-minor-mode-command phscroll-recenter-top-bottom (&optional arg))
 (phscroll-define-minor-mode-command phscroll-mwheel-scroll-left (event))
 (phscroll-define-minor-mode-command phscroll-mwheel-scroll-right (event))
+(phscroll-define-minor-mode-command phscroll-touch-screen-scroll (event))
 
 
 
