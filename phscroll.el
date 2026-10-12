@@ -2054,10 +2054,19 @@ Overlays and text properties are taken into account as much as possible."
          ;; Not first position in invisible region.
          0
        ;; Calculate the width of the current ellipsis string.
-       (string-width
-        (apply #'string (seq-map #'glyph-char
-                                 (or (display-table-slot buffer-display-table 4)
-                                     [?. ?. ?.]))))))))
+       (string-width (phscroll-ellipsis-string))))))
+
+(defun phscroll-ellipsis-string ()
+  (if-let* ((dtbl (phscroll-current-display-table))
+            (glyphs (display-table-slot dtbl 4)))
+      (apply #'string (seq-map #'glyph-char glyphs))
+    "..."))
+
+(defun phscroll-current-display-table ()
+  (or
+   ;; TODO: Use (window-display-table) ?
+   buffer-display-table
+   standard-display-table))
 
 ;; Text Width Calculation
 
