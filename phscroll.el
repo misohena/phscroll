@@ -2050,7 +2050,7 @@ Overlays and text properties are taken into account as much as possible."
     ('nil (string-width (buffer-substring-no-properties beg end)))
     ('t 0)
     (_
-     (if (and (>= beg (point-min)) (invisible-p (1- beg)))
+     (if (and (> beg (point-min)) (invisible-p (1- beg)))
          ;; Not first position in invisible region.
          0
        ;; Calculate the width of the current ellipsis string.
