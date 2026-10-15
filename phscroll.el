@@ -1398,7 +1398,7 @@ disabled."
 
 (defmacro phscroll-define-minor-mode-command (command
                                               arglist
-                                              &optional interactive-form)
+                                              interactive-form)
   "Define a command that executes COMMAND when called within a scroll area,
 and otherwise invokes the command that would be called when
 `phscroll-mode' is disabled.
@@ -1430,13 +1430,13 @@ were disabled."
 
 ;; Note: Use this macro after defining the target function
 ;;       (otherwise, interactive-form cannot be retrieved)
-(phscroll-define-minor-mode-command phscroll-scroll-left (&optional arg area))
-(phscroll-define-minor-mode-command phscroll-scroll-right (&optional arg area))
-(phscroll-define-minor-mode-command phscroll-recenter-left-right (&optional arg))
-(phscroll-define-minor-mode-command phscroll-recenter-top-bottom (&optional arg))
-(phscroll-define-minor-mode-command phscroll-mwheel-scroll-left (event))
-(phscroll-define-minor-mode-command phscroll-mwheel-scroll-right (event))
-(phscroll-define-minor-mode-command phscroll-touch-screen-scroll (event))
+(phscroll-define-minor-mode-command phscroll-scroll-left (&optional arg area) (interactive "P"))
+(phscroll-define-minor-mode-command phscroll-scroll-right (&optional arg area) (interactive "P"))
+(phscroll-define-minor-mode-command phscroll-recenter-left-right (&optional arg) (interactive "P"))
+(phscroll-define-minor-mode-command phscroll-recenter-top-bottom (&optional arg) (interactive "P"))
+(phscroll-define-minor-mode-command phscroll-mwheel-scroll-left (event) (interactive "e"))
+(phscroll-define-minor-mode-command phscroll-mwheel-scroll-right (event) (interactive "e"))
+(phscroll-define-minor-mode-command phscroll-touch-screen-scroll (event) (interactive "e"))
 
 
 
